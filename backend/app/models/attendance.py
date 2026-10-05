@@ -24,7 +24,7 @@ class Attendance(Base):
     __tablename__ = "attendance"
 
     __table_args__ = (
-        UniqueConstraint("user_id", "date", "subject_id", "period", name="uq_attendance_user_date_subject_period"),
+        UniqueConstraint("user_id", "date", "period", name="uq_attendance_user_date_period"),
         Index("ix_attendance_date", "date"),
     )
 
@@ -32,7 +32,7 @@ class Attendance(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="SET NULL"), nullable=True, index=True)
     date = Column(Date, nullable=False)
-    period = Column(Integer, default=1, nullable=True)  # Period 1..7
+    period = Column(Integer, default=1, server_default="1", nullable=False)  # Period 1..7
     time_in = Column(Time, nullable=True)
     status = Column(String, nullable=False)  # "present" or "absent"
     created_at = Column(DateTime, default=datetime.utcnow)

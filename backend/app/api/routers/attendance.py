@@ -196,7 +196,6 @@ async def mark_attendance(
             .filter(
                 Attendance.user_id == user.id,
                 Attendance.date == today,
-                Attendance.subject_id == subject_id_val,
                 Attendance.period == period_val,
             )
             .first()
@@ -206,10 +205,12 @@ async def mark_attendance(
             if existing_attendance.status == "absent":
                 existing_attendance.status = "present"
                 existing_attendance.time_in = now_local().time()
+                if subject_id_val:
+                    existing_attendance.subject_id = subject_id_val
                 db.commit()
                 db.refresh(existing_attendance)
                 return {
-                    "message": f"Attendance updated for {user.full_name} ({target_subject.code if target_subject else 'BCS703'} Period {period_val}) - status changed to present",
+                    "message": f"Attendance updated for {user.full_name} ({target_subject.code if target_subject else 'BCS703'} Period {period_val}) - status changed from absent to present",
                     "user": UserResponse.model_validate(user),
                     "attendance": AttendanceResponse.model_validate(existing_attendance),
                     "confidence": confidence,
@@ -234,7 +235,6 @@ async def mark_attendance(
                 .filter(
                     Attendance.user_id == user.id,
                     Attendance.date == today,
-                    Attendance.subject_id == subject_id_val,
                     Attendance.period == period_val,
                 )
                 .first()
