@@ -50,7 +50,8 @@ class FaceRecognitionService:
 
         self.enable_liveness_check = True
         self.min_liveness_confidence = 20
-        self.recognition_max_dim = 1024
+        self.recognition_max_dim = 640
+        self._last_cache_time = 0.0
 
         self._app = None  # lazily initialized FaceAnalysis
 
@@ -113,6 +114,67 @@ class FaceRecognitionService:
     # ------------------------------------------------------------------ #
     # Quality
     # ------------------------------------------------------------------ #
+    def _compute_face_quality(self, face, img) -> Dict:
+        x1, y1, x2, y2 = [int(v) for v in face.bbox]
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(img.shape[1], x2), min(img.shape[0], y2)
+        face_size = min(x2 - x1, y2 - y1)
+
+        crop = img[y1:y2, x1:x2]
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if crop.size else None
+        blur_var = float(cv2.Laplacian(gray, cv2.CV_64F).var()) if gray is not None and gray.size else 0.0
+        brightness = float(np.mean(gray)) if gray is not None and gray.size else 0.0
+        det_score = float(face.det_score)
+
+        det_component = min(100.0, det_score * 100.0)
+        size_component = min(100.0, (face_size / max(1, self.min_face_size)) * 60.0)
+        sharp_component = min(100.0, (blur_var / max(1.0, self.min_blur_var)) * 60.0)
+        if brightness <= 0:
+            bright_component = 0.0
+        elif brightness < 60:
+            bright_component = (brightness / 60.0) * 60.0
+        elif brightness > 210:
+            bright_component = max(0.0, 100.0 - (brightness - 210))
+        else:
+            bright_component = 100.0
+
+        overall = round(
+            det_component * 0.35 + size_component * 0.25 + sharp_component * 0.25 + bright_component * 0.15,
+            1,
+        )
+
+        issues = []
+        if det_score < self.min_det_score:
+            issues.append("Low detection confidence")
+        if face_size < self.min_face_size:
+            issues.append("Face too small / too far")
+        if blur_var < self.min_blur_var:
+            issues.append("Image too blurry")
+        if brightness < 60:
+            issues.append("Too dark")
+        elif brightness > 210:
+            issues.append("Overexposed")
+
+        is_acceptable = (
+            det_score >= self.min_det_score
+            and face_size >= self.min_face_size
+            and blur_var >= self.min_blur_var
+            and overall >= self.min_quality_score
+        )
+
+        return {
+            "is_acceptable": is_acceptable,
+            "overall_score": overall,
+            "metrics": {
+                "det_score": round(det_score, 3),
+                "face_size_px": int(face_size),
+                "sharpness": round(blur_var, 1),
+                "brightness": round(brightness, 1),
+            },
+            "issues": issues,
+            "recommendations": ["Move closer with steady, well-lit framing"] if issues else [],
+        }
+
     def check_image_quality(self, image_path: str) -> Dict:
         try:
             img = self._read_image(image_path)
@@ -124,65 +186,7 @@ class FaceRecognitionService:
                 return self._quality_fail("No face detected", recommendation="Face the camera with good lighting")
 
             face = self._largest_face(faces)
-            x1, y1, x2, y2 = [int(v) for v in face.bbox]
-            x1, y1 = max(0, x1), max(0, y1)
-            x2, y2 = min(img.shape[1], x2), min(img.shape[0], y2)
-            face_size = min(x2 - x1, y2 - y1)
-
-            crop = img[y1:y2, x1:x2]
-            gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if crop.size else None
-            blur_var = float(cv2.Laplacian(gray, cv2.CV_64F).var()) if gray is not None and gray.size else 0.0
-            brightness = float(np.mean(gray)) if gray is not None and gray.size else 0.0
-            det_score = float(face.det_score)
-
-            det_component = min(100.0, det_score * 100.0)
-            size_component = min(100.0, (face_size / max(1, self.min_face_size)) * 60.0)
-            sharp_component = min(100.0, (blur_var / max(1.0, self.min_blur_var)) * 60.0)
-            if brightness <= 0:
-                bright_component = 0.0
-            elif brightness < 60:
-                bright_component = (brightness / 60.0) * 60.0
-            elif brightness > 210:
-                bright_component = max(0.0, 100.0 - (brightness - 210))
-            else:
-                bright_component = 100.0
-
-            overall = round(
-                det_component * 0.35 + size_component * 0.25 + sharp_component * 0.25 + bright_component * 0.15,
-                1,
-            )
-
-            issues = []
-            if det_score < self.min_det_score:
-                issues.append("Low detection confidence")
-            if face_size < self.min_face_size:
-                issues.append("Face too small / too far")
-            if blur_var < self.min_blur_var:
-                issues.append("Image too blurry")
-            if brightness < 60:
-                issues.append("Too dark")
-            elif brightness > 210:
-                issues.append("Overexposed")
-
-            is_acceptable = (
-                det_score >= self.min_det_score
-                and face_size >= self.min_face_size
-                and blur_var >= self.min_blur_var
-                and overall >= self.min_quality_score
-            )
-
-            return {
-                "is_acceptable": is_acceptable,
-                "overall_score": overall,
-                "metrics": {
-                    "det_score": round(det_score, 3),
-                    "face_size_px": int(face_size),
-                    "sharpness": round(blur_var, 1),
-                    "brightness": round(brightness, 1),
-                },
-                "issues": issues,
-                "recommendations": ["Move closer with steady, well-lit framing"] if issues else [],
-            }
+            return self._compute_face_quality(face, img)
         except Exception as e:
             logger.error(f"Quality check failed for {image_path}: {str(e)}")
             return self._quality_fail(f"Quality check error: {str(e)}")
@@ -299,13 +303,20 @@ class FaceRecognitionService:
 
         embeddings, image_blobs, qualities = [], [], []
         for path in image_paths:
-            quality = self.check_image_quality(path)
+            img = self._read_image(path)
+            if img is None:
+                continue
+            faces = self.app.get(img)
+            if not faces:
+                continue
+            face = self._largest_face(faces)
+            if face is None or face.normed_embedding is None:
+                continue
+            quality = self._compute_face_quality(face, img)
             if not quality["is_acceptable"]:
                 logger.warning(f"Rejected (quality) {path}: {quality['issues']}")
                 continue
-            emb = self.get_embedding(path)
-            if emb is None:
-                continue
+            emb = np.asarray(face.normed_embedding, dtype=np.float32)
             with open(path, "rb") as f:
                 image_blobs.append(f.read())
             embeddings.append(emb)
@@ -337,6 +348,7 @@ class FaceRecognitionService:
 
         user.face_registered = True
         db.commit()
+        self.invalidate_cache()
 
         avg_quality = float(np.mean(qualities)) if qualities else 0.0
         logger.info(f"Enrolled {user.unique_id} with {acceptable} embeddings (avg quality {avg_quality:.1f})")
@@ -360,11 +372,18 @@ class FaceRecognitionService:
     # Embedding cache (rebuilt from DB when signature changes)
     # ------------------------------------------------------------------ #
     def _refresh_cache(self, db) -> None:
+        import time
         from app.models import FaceEmbedding, User
+
+        now = time.time()
+        # Avoid repeated cross-region database queries if verified within 30 seconds
+        if self._cache_embeddings is not None and getattr(self, "_last_cache_time", 0) > now - 30.0:
+            return
 
         signature = db.query(
             func.count(FaceEmbedding.id), func.max(FaceEmbedding.updated_at)
         ).one()
+        self._last_cache_time = now
 
         if signature == self._cache_signature and self._cache_embeddings is not None:
             return
@@ -388,6 +407,7 @@ class FaceRecognitionService:
         self._cache_signature = None
         self._cache_embeddings = None
         self._cache_labels = []
+        self._last_cache_time = 0.0
 
     # ------------------------------------------------------------------ #
     # Recognition

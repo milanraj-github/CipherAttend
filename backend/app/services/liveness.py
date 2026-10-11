@@ -156,7 +156,7 @@ def _measure_frames(image_paths: List[str]) -> List[FrameMeasurement]:
 
     out: List[FrameMeasurement] = []
     for i, path in enumerate(image_paths):
-        img = cv2.imread(path)
+        img = face_service._read_image(path)
         if img is None:
             continue
         faces = face_service.app.get(img)
