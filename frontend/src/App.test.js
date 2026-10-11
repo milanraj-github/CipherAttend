@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 
@@ -27,7 +28,7 @@ describe('App', () => {
       </MemoryRouter>
     );
     // The Navbar brand link is always visible
-    expect(screen.getAllByText('SAS').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/CRYPTOLAB/i).length).toBeGreaterThan(0);
   });
 
   it('redirects unauthenticated users from /dashboard to /login', () => {
@@ -47,5 +48,19 @@ describe('App', () => {
       </MemoryRouter>
     );
     expect(screen.getAllByText(/sign in/i).length).toBeGreaterThan(0);
+  });
+
+  it('renders the project information page with title and sections at /project-info', () => {
+    render(
+      <MemoryRouter initialEntries={['/project-info']}>
+        <App />
+      </MemoryRouter>
+    );
+    expect(screen.getAllByText(/Implement Biometric-based Authentication/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/^Introduction$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Objectives$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Cryptographic Concepts Used$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Flowchart$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Conclusion$/i)).toBeInTheDocument();
   });
 });

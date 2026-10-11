@@ -12,6 +12,7 @@ import AdminDashboard from './components/AdminDashboard';
 import EmployeeDashboard from './components/EmployeeDashboard';
 import UserProfile from './components/UserProfile';
 import UserAttendance from './components/UserAttendance';
+import ProjectInformation from './components/ProjectInformation';
 import Navbar from './components/Navbar';
 
 // Create Auth Context
@@ -98,6 +99,8 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Home />} />
+          <Route path="/project-info" element={<ProjectInformation />} />
+          <Route path="/info" element={<Navigate to="/project-info" replace />} />
           <Route 
             path="/login" 
             element={user ? <Navigate to="/dashboard" /> : <Login />} 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Container, Typography, Button, Stack, Paper } from '@mui/material';
-import { Shield, Lock, HowToReg, CameraAlt } from '@mui/icons-material';
+import { Shield, Lock, HowToReg, CameraAlt, InfoOutlined } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
@@ -13,13 +13,13 @@ const Home = () => {
     <Box
       sx={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #070A0F 0%, #0D131F 50%, #0A0E17 100%)',
+        background: 'var(--bg-gradient)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         py: 6,
         px: 2,
-        color: '#F3F4F6',
+        color: 'var(--text-primary)',
       }}
     >
       <Container maxWidth="sm">
@@ -33,10 +33,10 @@ const Home = () => {
             sx={{
               p: { xs: 4, sm: 6 },
               borderRadius: '24px',
-              background: 'rgba(13, 19, 31, 0.9)',
+              background: 'var(--card-bg)',
               backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(0, 224, 198, 0.3)',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 176, 0, 0.15)',
+              border: '1px solid var(--teal-border)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 30px var(--amber-border)',
               textAlign: 'center',
             }}
           >
@@ -48,15 +48,15 @@ const Home = () => {
                 mx: 'auto',
                 mb: 3,
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, rgba(255, 176, 0, 0.2) 0%, rgba(0, 224, 198, 0.25) 100%)',
-                border: '2px solid #FFB000',
+                background: 'linear-gradient(135deg, var(--amber-border) 0%, var(--teal-border) 100%)',
+                border: '2px solid var(--amber-accent)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 0 30px rgba(0, 224, 198, 0.35)',
+                boxShadow: '0 0 30px var(--teal-border)',
               }}
             >
-              <Shield sx={{ fontSize: 44, color: '#00E0C6' }} />
+              <Shield sx={{ fontSize: 44, color: 'var(--teal-accent)' }} />
             </Box>
 
             {/* Main Header Title */}
@@ -64,22 +64,21 @@ const Home = () => {
               variant="h3"
               fontWeight="900"
               sx={{
-                color: '#FFB000',
+                color: 'var(--amber-accent)',
                 letterSpacing: '-0.03em',
                 fontFamily: '"JetBrains Mono", "Inter", sans-serif',
                 fontSize: { xs: '1.85rem', sm: '2.3rem' },
                 mb: 1.5,
-                textShadow: '0 0 15px rgba(255, 176, 0, 0.3)',
               }}
             >
-              CRYPTOLAB <span style={{ color: '#00E0C6' }}>ATTENDANCE</span>
+              CRYPTOLAB <span style={{ color: 'var(--teal-accent)' }}>ATTENDANCE</span>
             </Typography>
 
             {/* Subtitle */}
             <Typography
               variant="body1"
               sx={{
-                color: '#9CA3AF',
+                color: 'var(--text-secondary)',
                 fontFamily: '"Inter", sans-serif',
                 fontSize: { xs: '0.95rem', sm: '1.05rem' },
                 mb: 5,
@@ -89,9 +88,41 @@ const Home = () => {
               AES-256-GCM Cryptographic Biometric Security
             </Typography>
 
-            {/* Three Action Buttons ONLY */}
-            <Stack spacing={2.5}>
-              {/* 1. SIGN IN */}
+            {/* Action Buttons */}
+            <Stack spacing={2}>
+              {/* 1. PROJECT INFORMATION */}
+              <Button
+                fullWidth
+                variant="outlined"
+                size="large"
+                startIcon={<InfoOutlined sx={{ color: 'var(--teal-accent)' }} />}
+                onClick={() => navigate('/project-info')}
+                sx={{
+                  py: 1.6,
+                  borderRadius: '14px',
+                  borderColor: 'var(--teal-accent)',
+                  color: 'var(--teal-accent)',
+                  fontWeight: '900',
+                  fontSize: '0.95rem',
+                  textTransform: 'none',
+                  fontFamily: '"Inter", sans-serif',
+                  borderWidth: '2px',
+                  background: 'rgba(0, 224, 198, 0.08)',
+                  boxShadow: '0 0 15px rgba(0, 224, 198, 0.15)',
+                  '&:hover': {
+                    borderWidth: '2px',
+                    borderColor: 'var(--teal-accent)',
+                    background: 'rgba(0, 224, 198, 0.18)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 0 25px rgba(0, 224, 198, 0.35)',
+                  },
+                  transition: 'all 0.25s ease',
+                }}
+              >
+                ℹ️ PROJECT INFORMATION
+              </Button>
+
+              {/* 2. SIGN IN */}
               <Button
                 fullWidth
                 variant="contained"
@@ -99,12 +130,12 @@ const Home = () => {
                 startIcon={<Lock sx={{ color: '#070A0F' }} />}
                 onClick={() => navigate('/login')}
                 sx={{
-                  py: 1.8,
+                  py: 1.6,
                   borderRadius: '14px',
                   background: 'linear-gradient(135deg, #FFB000 0%, #D97706 100%)',
                   color: '#070A0F',
                   fontWeight: '900',
-                  fontSize: '1rem',
+                  fontSize: '0.95rem',
                   textTransform: 'none',
                   fontFamily: '"Inter", sans-serif',
                   boxShadow: '0 8px 24px rgba(255, 176, 0, 0.35)',
@@ -119,7 +150,7 @@ const Home = () => {
                 🔐 SIGN IN
               </Button>
 
-              {/* 2. SIGN UP */}
+              {/* 3. SIGN UP */}
               <Button
                 fullWidth
                 variant="outlined"
