@@ -52,6 +52,7 @@ class Settings(BaseSettings):
 
     # ----- CORS (comma-separated origins) -----
     BACKEND_CORS_ORIGINS: str = "http://localhost:3000"
+    CORS_ORIGINS: str = ""
 
     # ----- Database -----
     # Default: SQLite file in the backend directory (local dev).
@@ -127,7 +128,17 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> List[str]:
-        return [o.strip() for o in self.BACKEND_CORS_ORIGINS.split(",") if o.strip()]
+        raw = self.CORS_ORIGINS or self.BACKEND_CORS_ORIGINS or ""
+        origins = [o.strip() for o in raw.split(",") if o.strip()]
+        defaults = [
+            "https://cipher-attend.vercel.app",
+            "https://cipherattend.vercel.app",
+            "http://localhost:3000",
+        ]
+        for d in defaults:
+            if d not in origins:
+                origins.append(d)
+        return origins
 
     @property
     def is_sqlite(self) -> bool:
