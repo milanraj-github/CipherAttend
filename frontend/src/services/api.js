@@ -267,11 +267,51 @@ export const analyticsAPI = {
     api.get(`/analytics/anomalies?days=${days}&severity=${severity}`),
 };
 
-// Utility function to convert webcam capture to file
+// Utility function to convert webcam capture to file with client-side optimization
 export const webcamCaptureToFile = (imageSrc, filename = 'webcam-capture.jpg') => {
-  return fetch(imageSrc)
-    .then(res => res.blob())
-    .then(blob => new File([blob], filename, { type: 'image/jpeg' }));
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxDim = 640;
+      let width = img.width;
+      let height = img.height;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(new File([blob], filename, { type: 'image/jpeg' }));
+          } else {
+            fetch(imageSrc)
+              .then((res) => res.blob())
+              .then((b) => resolve(new File([b], filename, { type: 'image/jpeg' })))
+              .catch(reject);
+          }
+        },
+        'image/jpeg',
+        0.82
+      );
+    };
+    img.onerror = () => {
+      fetch(imageSrc)
+        .then((res) => res.blob())
+        .then((b) => resolve(new File([b], filename, { type: 'image/jpeg' })))
+        .catch(reject);
+    };
+    img.src = imageSrc;
+  });
 };
 
 export default api; 

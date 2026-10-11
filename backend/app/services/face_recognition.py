@@ -36,7 +36,8 @@ class FaceEnrollmentError(Exception):
 class FaceRecognitionService:
     def __init__(self):
         self.model_name = settings.FACE_MODEL_PACK
-        self.det_size = (640, 640)
+        self.det_size = (320, 320)
+        self._last_cache_time = 0.0
 
         self.match_threshold = settings.FACE_MATCH_THRESHOLD
         self.duplicate_threshold = settings.FACE_DUPLICATE_THRESHOLD
@@ -337,6 +338,7 @@ class FaceRecognitionService:
 
         user.face_registered = True
         db.commit()
+        self.invalidate_cache()
 
         avg_quality = float(np.mean(qualities)) if qualities else 0.0
         logger.info(f"Enrolled {user.unique_id} with {acceptable} embeddings (avg quality {avg_quality:.1f})")
@@ -360,13 +362,20 @@ class FaceRecognitionService:
     # Embedding cache (rebuilt from DB when signature changes)
     # ------------------------------------------------------------------ #
     def _refresh_cache(self, db) -> None:
+        import time
         from app.models import FaceEmbedding, User
+
+        now = time.time()
+        # Avoid repeated cross-region database round-trips if cached within 20 seconds
+        if self._cache_embeddings is not None and getattr(self, "_last_cache_time", 0) > now - 20.0:
+            return
 
         signature = db.query(
             func.count(FaceEmbedding.id), func.max(FaceEmbedding.updated_at)
         ).one()
 
         if signature == self._cache_signature and self._cache_embeddings is not None:
+            self._last_cache_time = now
             return
 
         rows = (
@@ -383,11 +392,13 @@ class FaceRecognitionService:
         self._cache_embeddings = np.vstack(mats).astype(np.float32) if mats else None
         self._cache_labels = labels
         self._cache_signature = signature
+        self._last_cache_time = now
 
     def invalidate_cache(self) -> None:
         self._cache_signature = None
         self._cache_embeddings = None
         self._cache_labels = []
+        self._last_cache_time = 0.0
 
     # ------------------------------------------------------------------ #
     # Recognition

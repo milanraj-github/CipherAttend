@@ -31,8 +31,8 @@ import { faceAPI, livenessAPI, webcamCaptureToFile } from '../services/api';
 import FaceCamera from './FaceCamera';
 
 const REQUIRED_IMAGES = 5;
-const BURST_FRAMES = 12;
-const BURST_INTERVAL_MS = 200;
+const BURST_FRAMES = 6;
+const BURST_INTERVAL_MS = 120;
 const READY_TIMEOUT_MS = 25000;
 
 const FaceCapture = () => {
