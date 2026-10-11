@@ -266,6 +266,16 @@ export const adminAPI = {
   seedMultiPeriodAttendance: (studentId) => api.post(`/admin/students/${studentId}/attendance/seed-multi-period`),
 };
 
+// Admin Cryptography Lab APIs (Live Inspection & Verification)
+export const cryptoLabAPI = {
+  getOverview: () => api.get('/admin/cryptography/overview'),
+  getUsers: () => api.get('/admin/cryptography/users'),
+  getUserDetails: (userId) => api.get(`/admin/cryptography/users/${userId}`),
+  verifyIntegrity: (userId) => api.post(`/admin/cryptography/users/${userId}/verify-integrity`),
+  getUserImageUrl: (userId, imageId) => `${API_BASE_URL}/admin/cryptography/users/${userId}/image/${imageId}`,
+  getOperations: (limit = 50) => api.get(`/admin/cryptography/operations?limit=${limit}`),
+};
+
 // Analytics APIs
 export const analyticsAPI = {
   getDashboard: (period = 'week') => api.get(`/analytics/dashboard?period=${period}`),

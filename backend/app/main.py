@@ -19,6 +19,7 @@ from app.api.routers import (
     analytics,
     attendance,
     auth,
+    crypto_lab,
     face,
     liveness,
     users,
@@ -148,6 +149,7 @@ def create_app() -> FastAPI:
         users.router,
         admin.router,
         analytics.router,
+        crypto_lab.router,
     ):
         app.include_router(router)
 

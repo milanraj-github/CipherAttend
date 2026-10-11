@@ -31,7 +31,7 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
-  const { mode, isDarkMode, toggleTheme } = useThemeMode();
+  const { isDarkMode, toggleTheme } = useThemeMode();
   const [anchorEl, setAnchorEl] = useState(null);
   const [mobileMenuEl, setMobileMenuEl] = useState(null);
   const [scrolled, setScrolled] = useState(false);
@@ -65,7 +65,12 @@ const Navbar = () => {
     { path: '/project-info', label: 'Project Information', icon: <InfoOutlined fontSize="small" sx={{ mr: 0.8 }} /> },
     { path: '/mark-attendance', label: 'Mark Attendance' },
     { path: '/dashboard', label: 'Dashboard' },
-    ...(user?.role === 'admin' ? [{ path: '/admin', label: 'Admin' }] : []),
+    ...(user?.role === 'admin'
+      ? [
+          { path: '/admin', label: 'Admin' },
+          { path: '/admin/cryptography-lab', label: 'Cryptography Lab' },
+        ]
+      : []),
   ];
 
   return (

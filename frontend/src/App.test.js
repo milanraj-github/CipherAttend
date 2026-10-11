@@ -63,4 +63,13 @@ describe('App', () => {
     expect(screen.getByText(/^Flowchart$/i)).toBeInTheDocument();
     expect(screen.getByText(/^Conclusion$/i)).toBeInTheDocument();
   });
+
+  it('redirects unauthenticated users from /admin/cryptography-lab to /login', () => {
+    render(
+      <MemoryRouter initialEntries={['/admin/cryptography-lab']}>
+        <App />
+      </MemoryRouter>
+    );
+    expect(screen.getAllByText(/sign in/i).length).toBeGreaterThan(0);
+  });
 });

@@ -13,6 +13,7 @@ import EmployeeDashboard from './components/EmployeeDashboard';
 import UserProfile from './components/UserProfile';
 import UserAttendance from './components/UserAttendance';
 import ProjectInformation from './components/ProjectInformation';
+import AdminCryptoLab from './components/AdminCryptoLab';
 import Navbar from './components/Navbar';
 
 // Create Auth Context
@@ -114,6 +115,14 @@ function App() {
           <Route 
             path="/admin" 
             element={user && user.role === 'admin' ? <AdminDashboard /> : <Navigate to="/login" />} 
+          />
+          <Route 
+            path="/admin/cryptography-lab" 
+            element={user && user.role === 'admin' ? <AdminCryptoLab /> : <Navigate to="/login" />} 
+          />
+          <Route 
+            path="/admin/crypto-lab" 
+            element={<Navigate to="/admin/cryptography-lab" replace />} 
           />
           
           {/* Protected Routes - All Users */}
