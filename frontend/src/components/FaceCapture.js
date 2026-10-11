@@ -6,9 +6,6 @@ import {
   Box,
   Alert,
   CircularProgress,
-  Stepper,
-  Step,
-  StepLabel,
   Grid,
   Card,
   LinearProgress,
@@ -16,64 +13,64 @@ import {
   Stack,
   IconButton,
   CardContent,
+  Tabs,
+  Tab,
+  Paper,
+  Chip,
 } from '@mui/material';
-import { 
+import {
   Close,
+  CloudUpload,
+  PhotoCamera,
+  VerifiedUser,
+  Lock,
+  DeleteOutline,
+  CheckCircle,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { faceAPI, livenessAPI, webcamCaptureToFile } from '../services/api';
 import FaceCamera from './FaceCamera';
 
-// Number of face images required for enrollment. Keep in sync with the
-// backend's FACE_MIN_ENCODINGS expectations.
 const REQUIRED_IMAGES = 5;
-// Frames captured across the server-issued head-turn challenge. More than the
-// minimum, because the server needs enough of them spanning the movement to
-// measure the rotation, and the extra poses also improve the enrolled gallery.
 const BURST_FRAMES = 12;
 const BURST_INTERVAL_MS = 200;
-// How long to wait for a live, well-framed face (including the blink) before
-// giving up and telling the user why.
 const READY_TIMEOUT_MS = 25000;
 
 const FaceCapture = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const webcamRef = useRef(null);
-  
+
+  const [mode, setMode] = useState(0); // 0: Live Camera, 1: Upload Images
   const [step, setStep] = useState(0);
   const [capturedImages, setCapturedImages] = useState([]);
-  const [isCapturing, setIsCapturing] = useState(false); // eslint-disable-line no-unused-vars
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [uploadedPreviews, setUploadedPreviews] = useState([]);
+  const [isCapturing, setIsCapturing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef(null);
+
   const statusRef = useRef({ ready: false, faceDetected: false, quality: 0 });
-  // Mirrored into state so the live prompt ("Blink to confirm...") is actually
-  // rendered; the ref alone does not trigger a re-render.
   const [detectMsg, setDetectMsg] = useState('Position your face in the frame');
-  // Liveness challenge state. The challenge is issued by the server and must be
-  // submitted with the images; enrolling without one is refused.
   const [challengeId, setChallengeId] = useState(null);
   const [challengePrompt, setChallengePrompt] = useState('');
   const [burstProgress, setBurstProgress] = useState(0);
-  // Set when the component unmounts or the user resets, so an in-flight capture
-  // sequence stops instead of updating a dead component.
   const abortRef = useRef(false);
-
-  const steps = ['Camera Setup', 'Capture Images', 'Upload & Train'];
 
   const handleStatus = useCallback((status) => {
     statusRef.current = status;
     setDetectMsg(status.message);
   }, []);
 
-  /** Wait until the camera reports a live, well-framed face (blink included). */
   const waitForLiveFace = useCallback(async () => {
     const start = Date.now();
     while (Date.now() - start < READY_TIMEOUT_MS) {
       if (abortRef.current) return false;
       if (statusRef.current && statusRef.current.ready) return true;
-      // eslint-disable-next-line no-await-in-loop
       await new Promise((r) => setTimeout(r, 150));
     }
     return false;
@@ -82,6 +79,7 @@ const FaceCapture = () => {
   const startCapturing = async () => {
     abortRef.current = false;
     setError('');
+    setSuccessMsg('');
     setChallengeId(null);
     setCapturedImages([]);
     setBurstProgress(0);
@@ -89,28 +87,22 @@ const FaceCapture = () => {
     setStep(1);
 
     try {
-      // 1. Don't ask the server for a challenge until there is actually a live
-      //    face to challenge, otherwise the nonce burns while the user gets set.
       const live = await waitForLiveFace();
       if (abortRef.current) return;
       if (!live) {
         setError(
-          'Could not confirm a live face. Centre your face in the frame, make ' +
-          'sure the lighting is good, and blink when prompted.'
+          'Could not confirm a live face. Centre your face in the frame, ensure good lighting, and blink when prompted.'
         );
         setIsCapturing(false);
         setStep(0);
         return;
       }
 
-      // 2. The server names a random head movement.
       const { data: challenge } = await livenessAPI.getChallenge();
       if (abortRef.current) return;
       setChallengeId(challenge.challenge_id);
       setChallengePrompt(challenge.instruction);
 
-      // 3. Capture across the movement so the server can verify the rotation
-      //    really happened. A photo cannot satisfy this.
       const shots = await webcamRef.current.captureBurst({
         count: BURST_FRAMES,
         intervalMs: BURST_INTERVAL_MS,
@@ -128,7 +120,7 @@ const FaceCapture = () => {
       setStep(2);
     } catch (e) {
       if (!abortRef.current) {
-        setError('Could not start the liveness check. Please try again.');
+        setError('Could not complete live face verification. Please try again or use Image Upload.');
         setStep(0);
       }
     } finally {
@@ -149,10 +141,9 @@ const FaceCapture = () => {
     setError('');
   };
 
-  // Stop any in-flight capture sequence on unmount.
   useEffect(() => () => { abortRef.current = true; }, []);
 
-  const uploadImages = async () => {
+  const uploadCapturedImages = async () => {
     if (capturedImages.length < REQUIRED_IMAGES) {
       setError(`Please capture at least ${REQUIRED_IMAGES} face images`);
       return;
@@ -162,416 +153,474 @@ const FaceCapture = () => {
     setError('');
 
     try {
-      // Convert captured images to files
       const files = await Promise.all(
         capturedImages.map(async (imageData, index) => {
           return await webcamCaptureToFile(imageData.imageSrc, `face_${index + 1}.jpg`);
         })
       );
 
-      // The challenge proves these frames came from a live head movement.
       await faceAPI.registerFace(files, challengeId);
-      
-      console.log('Face registration completed successfully!');
-      navigate('/profile');
-    } catch (error) {
-      console.error('Face registration error:', error);
-      
-      // Extract detailed error message from response
-      let errorMessage = 'Face registration failed. Please try again.';
-      
-      if (error.response?.status === 409) {
-        // Duplicate face detected
-        errorMessage = error.response?.data?.detail || 'This face is already registered to another user.';
-      } else if (error.response?.status === 403) {
-        // Liveness challenge failed, expired, or already used.
-        errorMessage = error.response?.data?.detail
-          || 'Liveness could not be confirmed. Please retake with the head movement.';
-      } else if (error.response?.status === 400) {
-        // Quality issues
-        errorMessage = error.response?.data?.detail || 'Face quality is too low. Please try again with better lighting.';
-      } else if (error.response?.data?.detail) {
-        // Other specific errors
-        errorMessage = error.response.data.detail;
-      }
-      
-      setError(errorMessage);
+      setSuccessMsg('Biometric face template enrolled and encrypted successfully!');
+      setTimeout(() => navigate('/profile'), 1500);
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || 'Face registration failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- File Upload Mode Handlers ---
+  const handleFileUpload = (filesList) => {
+    if (!filesList || filesList.length === 0) return;
+
+    const newFiles = Array.from(filesList).filter((f) => f.type.startsWith('image/'));
+    if (newFiles.length === 0) {
+      setError('Please select valid image files (JPG, PNG, WEBP).');
+      return;
+    }
+
+    const combined = [...uploadedFiles, ...newFiles].slice(0, 10);
+    setUploadedFiles(combined);
+
+    const previews = combined.map((f) => URL.createObjectURL(f));
+    setUploadedPreviews(previews);
+    setError('');
+  };
+
+  const removeUploadedFile = (index) => {
+    const nextFiles = uploadedFiles.filter((_, i) => i !== index);
+    setUploadedFiles(nextFiles);
+    URL.revokeObjectURL(uploadedPreviews[index]);
+    const nextPreviews = uploadedPreviews.filter((_, i) => i !== index);
+    setUploadedPreviews(nextPreviews);
+  };
+
+  const submitUploadedImages = async () => {
+    if (uploadedFiles.length === 0) {
+      setError('Please upload at least 1 clear face image.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      await faceAPI.registerFaceUpload(uploadedFiles);
+      setSuccessMsg('Biometric template created and encrypted with AES-256-GCM successfully!');
+      setTimeout(() => navigate('/profile'), 1500);
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || 'Face upload registration failed.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Box sx={{ background: 'linear-gradient(135deg, #f5f3f0 0%, #fafaf9 50%, #ffffff 100%)', minHeight: '100vh', py: 4 }}>
+    <Box
+      sx={{
+        background: 'var(--bg-gradient)',
+        minHeight: '100vh',
+        py: 4,
+        px: 2,
+        color: 'var(--text-primary)',
+      }}
+    >
       <Container maxWidth="lg">
-        <Fade in timeout={800}>
-          <Card
-            elevation={0}
+        {/* Header */}
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h4" fontWeight="900" sx={{ color: 'var(--amber-accent)', fontFamily: '"JetBrains Mono", sans-serif', mb: 0.5 }}>
+            BIOMETRIC <span style={{ color: 'var(--teal-accent)' }}>FACE REGISTRATION</span>
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'var(--text-secondary)', fontFamily: '"Inter", sans-serif' }}>
+            AES-256-GCM Encrypted Face Template Enrollment for Student: <strong>{user?.full_name}</strong> ({user?.usn || user?.unique_id})
+          </Typography>
+        </Box>
+
+        {/* Global Error & Success Alerts */}
+        {error && (
+          <Fade in>
+            <Alert severity="error" sx={{ mb: 3, borderRadius: '12px', fontWeight: '700' }} onClose={() => setError('')}>
+              {error}
+            </Alert>
+          </Fade>
+        )}
+
+        {successMsg && (
+          <Fade in>
+            <Alert severity="success" sx={{ mb: 3, borderRadius: '12px', fontWeight: '700' }}>
+              {successMsg}
+            </Alert>
+          </Fade>
+        )}
+
+        {/* Mode Switcher Tabs */}
+        <Paper
+          elevation={0}
+          sx={{
+            borderRadius: '16px',
+            background: 'var(--card-solid)',
+            border: '1px solid var(--teal-border)',
+            mb: 3,
+            p: 0.75,
+          }}
+        >
+          <Tabs
+            value={mode}
+            onChange={(e, val) => {
+              setMode(val);
+              setError('');
+            }}
+            variant="fullWidth"
             sx={{
-              border: '1px solid rgba(0,0,0,0.08)',
-              borderRadius: '24px',
-              background: '#ffffff',
-              overflow: 'hidden',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+              '& .MuiTab-root': {
+                color: 'var(--text-secondary)',
+                fontWeight: '800',
+                textTransform: 'none',
+                minHeight: 48,
+                borderRadius: '12px',
+                fontSize: '0.95rem',
+                fontFamily: '"Inter", sans-serif',
+                '&.Mui-selected': {
+                  color: '#FFFFFF',
+                  background: 'linear-gradient(135deg, var(--amber-accent) 0%, var(--teal-accent) 100%)',
+                  boxShadow: '0 4px 15px var(--amber-border)',
+                },
+              },
+              '& .MuiTabs-indicator': { display: 'none' },
             }}
           >
-            {/* Header */}
-            <Box sx={{ p: 6, textAlign: 'center', background: 'linear-gradient(135deg, #212E46 0%, #2c3e5a 100%)', color: '#ffffff' }}>
-              <Typography variant="h5" fontWeight="700" sx={{ mb: 2, fontFamily: '"Inter", sans-serif' }}>
-                Face Registration
-              </Typography>
-              <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.9)', maxWidth: '600px', mx: 'auto', lineHeight: 1.6, fontFamily: '"Inter", sans-serif' }}>
-                Welcome {user?.full_name}! We need to capture your face images for secure biometric authentication.
-              </Typography>
-            </Box>
+            <Tab icon={<PhotoCamera />} iconPosition="start" label="🎥 Live Camera Scan" />
+            <Tab icon={<CloudUpload />} iconPosition="start" label="📁 Upload Face Images" />
+          </Tabs>
+        </Paper>
 
-            {/* Stepper */}
-            <Box sx={{ p: 4, background: '#fafaf9' }}>
-              <Stepper 
-                activeStep={step} 
-                sx={{
-                  '& .MuiStepLabel-root': {
-                    '& .MuiStepLabel-label': {
-                      fontWeight: '600',
-                      color: '#78716c',
-                      fontFamily: '"Inter", sans-serif',
-                      '&.Mui-active': {
-                        color: '#212E46',
-                        fontWeight: '700',
-                      },
-                      '&.Mui-completed': {
-                        color: '#16a34a',
-                        fontWeight: '600',
-                      },
-                    },
-                  },
-                  '& .MuiStepIcon-root': {
-                    color: '#e7e5e4',
-                    '&.Mui-active': {
-                      color: '#212E46',
-                    },
-                    '&.Mui-completed': {
-                      color: '#16a34a',
-                    },
-                  },
-                }}
-              >
-                {steps.map((label) => (
-                  <Step key={label}>
-                    <StepLabel>{label}</StepLabel>
-                  </Step>
-                ))}
-              </Stepper>
-            </Box>
-
-            {/* Error Alert */}
-            {error && (
-              <Box sx={{ p: 4 }}>
-                <Alert 
-                  severity="error" 
-                  sx={{
-                    borderRadius: '16px',
-                    border: '1px solid #fca5a5',
-                    background: '#fecaca',
-                    '& .MuiAlert-icon': { color: '#dc2626' },
-                    fontFamily: '"Inter", sans-serif',
-                  }}
-                  action={
-                    <IconButton
-                      color="inherit"
-                      size="small"
-                      onClick={() => setError('')}
-                    >
-                      <Close fontSize="inherit" />
-                    </IconButton>
-                  }
-                >
-                  {error}
-                </Alert>
-              </Box>
-            )}
-
-            {/* Main Content */}
-            <Box sx={{ p: 6 }}>
-              <Grid container spacing={6}>
-                {/* Camera Section */}
-                <Grid item xs={12} md={6}>
-                  <Card 
-                    elevation={0}
-                    sx={{
-                      border: '1px solid rgba(0,0,0,0.08)',
-                      borderRadius: '20px',
-                      background: '#ffffff',
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
-                    }}
-                  >
-                    <CardContent sx={{ p: 4, textAlign: 'center' }}>
-                      <Typography variant="h6" fontWeight="700" gutterBottom sx={{ color: '#212E46', fontFamily: '"Inter", sans-serif' }}>
-                        Camera Feed
-                      </Typography>
-                      
-                      <Box
-                        sx={{
-                          position: 'relative',
-                          display: 'flex',
-                          justifyContent: 'center',
-                          borderRadius: '16px',
-                          overflow: 'hidden',
-                          border: '2px solid #e7e5e4',
-                          background: '#fafaf9',
-                          mb: 4,
-                        }}
-                      >
-                        <FaceCamera
-                          ref={webcamRef}
-                          mode="capture"
-                          height={300}
-                          width="100%"
-                          onStatus={handleStatus}
-                        />
-                      </Box>
-
-                      {/* Action Buttons */}
-                      {step === 0 && (
-                        <Button
-                          variant="contained"
-                          size="large"
-                          onClick={startCapturing}
-                          sx={{
-                            py: 2.5,
-                            px: 5,
-                            fontSize: '1rem',
-                            fontWeight: '700',
-                            borderRadius: '14px',
-                            background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)',
-                            textTransform: 'none',
-                            fontFamily: '"Inter", sans-serif',
-                            boxShadow: '0 8px 24px rgba(249,115,22,0.3)',
-                            '&:hover': {
-                              background: 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)',
-                              boxShadow: '0 12px 32px rgba(249,115,22,0.4)',
-                            },
-                          }}
-                        >
-                          Start Face Capture
-                        </Button>
-                      )}
-                      
-                      {step === 1 && (
-                        <Box>
-                          <LinearProgress
-                            variant={challengePrompt ? 'determinate' : 'indeterminate'}
-                            value={burstProgress}
-                            sx={{ 
-                              mb: 3, 
-                              height: 8, 
-                              borderRadius: 4,
-                              background: '#e7e5e4',
-                              '& .MuiLinearProgress-bar': {
-                                background: 'linear-gradient(90deg, #16a34a 0%, #22c55e 100%)',
-                                borderRadius: 4,
-                              },
-                            }}
-                          />
-                          <Typography variant="h6" fontWeight="700" sx={{ color: challengePrompt ? '#f97316' : '#16a34a', mb: 1, fontFamily: '"Inter", sans-serif' }}>
-                            {challengePrompt || 'Preparing liveness check…'}
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#78716c', fontFamily: '"Inter", sans-serif' }}>
-                            {challengePrompt ? 'Keep your face in frame while we check' : detectMsg}
-                          </Typography>
-                        </Box>
-                      )}
-                      
-                      {step === 2 && (
-                        <Stack direction="row" spacing={2} justifyContent="center">
-                          <Button
-                            variant="contained"
-                            size="large"
-                            startIcon={loading ? <CircularProgress size={20} sx={{ color: '#ffffff' }} /> : null}
-                            onClick={uploadImages}
-                            disabled={loading}
-                            sx={{
-                              py: 2.5,
-                              px: 4,
-                              fontSize: '1rem',
-                              fontWeight: '700',
-                              borderRadius: '14px',
-                              background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
-                              textTransform: 'none',
-                              fontFamily: '"Inter", sans-serif',
-                              boxShadow: 'none',
-                              '&:hover': {
-                                background: 'linear-gradient(135deg, #15803d 0%, #16a34a 100%)',
-                                boxShadow: 'none',
-                              },
-                            }}
-                          >
-                            {loading ? 'Processing...' : 'Complete Registration'}
-                          </Button>
-                          <Button
-                            variant="outlined"
-                            onClick={resetCapture}
-                            disabled={loading}
-                            sx={{
-                              py: 2.5,
-                              px: 4,
-                              fontSize: '1rem',
-                              fontWeight: '700',
-                              borderRadius: '14px',
-                              border: '2px solid #e7e5e4',
-                              color: '#78716c',
-                              textTransform: 'none',
-                              fontFamily: '"Inter", sans-serif',
-                              '&:hover': {
-                                border: '2px solid #d6d3d1',
-                                background: '#fafaf9',
-                              },
-                            }}
-                          >
-                            Retake
-                          </Button>
-                        </Stack>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grid>
-
-                {/* Captured Images Section */}
-                <Grid item xs={12} md={6}>
-                  <Card 
-                    elevation={0}
-                    sx={{
-                      border: '1px solid rgba(0,0,0,0.08)',
-                      borderRadius: '20px',
-                      background: '#ffffff',
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
-                    }}
-                  >
-                    <CardContent sx={{ p: 4 }}>
-                      <Typography variant="h6" fontWeight="700" gutterBottom sx={{ color: '#212E46', fontFamily: '"Inter", sans-serif' }}>
-                        Captured Images ({capturedImages.length})
-                      </Typography>
-                      
-                      <Box 
-                        sx={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
-                          gap: 2,
-                          minHeight: 200,
-                          border: '2px dashed #e7e5e4',
-                          borderRadius: '16px',
-                          p: 3,
-                          mb: 3,
-                          background: '#fafaf9',
-                        }}
-                      >
-                        {capturedImages.length === 0 ? (
-                          <Box 
-                            display="flex" 
-                            flexDirection="column" 
-                            alignItems="center" 
-                            justifyContent="center"
-                            gridColumn="1 / -1"
-                            sx={{ color: '#78716c' }}
-                          >
-                            <Typography variant="body1" fontWeight="700" sx={{ fontFamily: '"Inter", sans-serif' }}>
-                              Captured face images will appear here
-                            </Typography>
-                            <Typography variant="body2" sx={{ color: '#9ca3af', mt: 1, fontFamily: '"Inter", sans-serif' }}>
-                              We'll capture a short sequence while you move your head
-                            </Typography>
-                          </Box>
-                        ) : (
-                          capturedImages.map((imageData, index) => (
-                            <Box 
-                              key={index}
-                              sx={{
-                                position: 'relative',
-                                border: '2px solid #16a34a',
-                                borderRadius: '12px',
-                                overflow: 'hidden',
-                                aspectRatio: '1',
-                                animation: 'fadeIn 0.5s ease',
-                              }}
-                            >
-                              <img 
-                                src={imageData.imageSrc} 
-                                alt={`Capture ${index + 1}`}
-                                style={{ 
-                                  width: '100%', 
-                                  height: '100%', 
-                                  objectFit: 'cover' 
-                                }}
-                              />
-                              <Box
-                                sx={{
-                                  position: 'absolute',
-                                  top: 4,
-                                  right: 4,
-                                  background: '#16a34a',
-                                  color: 'white',
-                                  borderRadius: '50%',
-                                  width: 24,
-                                  height: 24,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '12px',
-                                  fontWeight: 'bold',
-                                  fontFamily: '"Inter", sans-serif',
-                                }}
-                              >
-                                {index + 1}
-                              </Box>
-                            </Box>
-                          ))
-                        )}
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
-            </Box>
-
-            {/* Instructions */}
-            <Box sx={{ p: 6, pt: 0 }}>
-              <Card 
-                elevation={0}
-                sx={{
-                  border: '1px solid #fed7aa',
-                  borderRadius: '20px',
-                  background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
-                }}
-              >
-                <CardContent sx={{ p: 4 }}>
-                  <Typography variant="h6" fontWeight="700" gutterBottom sx={{ color: '#ea580c', fontFamily: '"Inter", sans-serif' }}>
-                    Registration Instructions
+        <Grid container spacing={3}>
+          {/* Main Action Area */}
+          <Grid item xs={12} md={7}>
+            <Card
+              elevation={0}
+              sx={{
+                borderRadius: '20px',
+                background: 'var(--card-solid)',
+                border: '1px solid var(--teal-border)',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
+              }}
+            >
+              {/* MODE 0: Live Camera */}
+              {mode === 0 && (
+                <CardContent sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography variant="h6" fontWeight="800" sx={{ color: 'var(--text-primary)', mb: 2 }}>
+                    Live Camera Stream
                   </Typography>
-                  <Stack spacing={2}>
-                    {[
-                      'Position your face clearly within the camera frame',
-                      'Blink when prompted — capture only starts once a live person is confirmed',
-                      'Then follow the on-screen prompt and slowly turn your head',
-                      'The head movement is what proves you are a real person and not a photo',
-                      'Ensure good lighting for optimal recognition accuracy',
-                      `At least ${REQUIRED_IMAGES} usable images are needed to enrol`
-                    ].map((instruction, index) => (
-                      <Box key={index} display="flex" alignItems="flex-start" gap={2}>
-                        <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: '#f97316', flexShrink: 0, mt: 0.75 }} />
-                        <Typography variant="body2" sx={{ color: '#9a3412', lineHeight: 1.5, fontFamily: '"Inter", sans-serif' }}>
-                          {instruction}
+
+                  <Box
+                    sx={{
+                      position: 'relative',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      borderRadius: '16px',
+                      overflow: 'hidden',
+                      border: '2px solid var(--teal-border)',
+                      background: '#000000',
+                      mb: 3,
+                    }}
+                  >
+                    <FaceCamera
+                      ref={webcamRef}
+                      mode="capture"
+                      height={320}
+                      width="100%"
+                      onStatus={handleStatus}
+                    />
+                  </Box>
+
+                  {step === 0 && (
+                    <Button
+                      variant="contained"
+                      size="large"
+                      onClick={startCapturing}
+                      sx={{
+                        py: 1.8,
+                        px: 4,
+                        fontSize: '1rem',
+                        fontWeight: '800',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, var(--amber-accent) 0%, var(--teal-accent) 100%)',
+                        color: '#FFFFFF',
+                        boxShadow: '0 8px 24px var(--amber-border)',
+                      }}
+                    >
+                      Start Live Face Scan
+                    </Button>
+                  )}
+
+                  {step === 1 && (
+                    <Box>
+                      <LinearProgress
+                        variant={challengePrompt ? 'determinate' : 'indeterminate'}
+                        value={burstProgress}
+                        sx={{
+                          mb: 2,
+                          height: 8,
+                          borderRadius: 4,
+                          background: 'var(--card-inner)',
+                          '& .MuiLinearProgress-bar': {
+                            background: 'linear-gradient(90deg, var(--amber-accent) 0%, var(--teal-accent) 100%)',
+                            borderRadius: 4,
+                          },
+                        }}
+                      />
+                      <Typography variant="h6" fontWeight="800" sx={{ color: challengePrompt ? 'var(--amber-accent)' : 'var(--teal-accent)', mb: 1 }}>
+                        {challengePrompt || 'Preparing liveness check…'}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'var(--text-secondary)' }}>
+                        {challengePrompt ? 'Keep your face in frame while we check' : detectMsg}
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {step === 2 && (
+                    <Stack direction="row" spacing={2} justifyContent="center">
+                      <Button
+                        variant="contained"
+                        size="large"
+                        startIcon={loading ? <CircularProgress size={20} sx={{ color: '#ffffff' }} /> : <VerifiedUser />}
+                        onClick={uploadCapturedImages}
+                        disabled={loading}
+                        sx={{
+                          py: 1.8,
+                          px: 4,
+                          fontWeight: '800',
+                          borderRadius: '12px',
+                          background: 'linear-gradient(135deg, var(--teal-accent) 0%, #0F766E 100%)',
+                          color: '#FFFFFF',
+                        }}
+                      >
+                        {loading ? 'Encrypting & Enrolling...' : 'Complete Biometric Enrollment'}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={resetCapture}
+                        disabled={loading}
+                        sx={{
+                          py: 1.8,
+                          px: 3,
+                          fontWeight: '700',
+                          borderRadius: '12px',
+                          border: '1px solid var(--table-border)',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        Retake
+                      </Button>
+                    </Stack>
+                  )}
+                </CardContent>
+              )}
+
+              {/* MODE 1: Upload Images */}
+              {mode === 1 && (
+                <CardContent sx={{ p: 4 }}>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    multiple
+                    accept="image/*"
+                    onChange={(e) => handleFileUpload(e.target.files)}
+                    style={{ display: 'none' }}
+                  />
+
+                  <Box
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragOver(false);
+                      handleFileUpload(e.dataTransfer.files);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragOver(true);
+                    }}
+                    onDragLeave={() => setIsDragOver(false)}
+                    onClick={() => fileInputRef.current?.click()}
+                    sx={{
+                      border: `2px dashed ${isDragOver ? 'var(--amber-accent)' : 'var(--teal-border)'}`,
+                      borderRadius: '16px',
+                      p: { xs: 3, sm: 5 },
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      background: isDragOver ? 'rgba(0, 224, 198, 0.08)' : 'var(--card-inner)',
+                      transition: 'all 0.25s ease',
+                      mb: 3,
+                      '&:hover': {
+                        borderColor: 'var(--amber-accent)',
+                        background: 'rgba(255, 176, 0, 0.05)',
+                      },
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 64,
+                        height: 64,
+                        mx: 'auto',
+                        mb: 2,
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, var(--teal-border) 0%, var(--amber-border) 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <CloudUpload sx={{ fontSize: 32, color: 'var(--teal-accent)' }} />
+                    </Box>
+                    <Typography variant="h6" fontWeight="800" sx={{ color: 'var(--text-primary)', mb: 0.5 }}>
+                      Upload 1 to 5 Face Photos
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'var(--text-secondary)', mb: 1.5 }}>
+                      Drag & drop multiple clear face photos or click to browse
+                    </Typography>
+                    <Chip
+                      label="Clear Frontal Poses Recommended (Max 10 Images)"
+                      size="small"
+                      sx={{ background: 'var(--card-solid)', border: '1px solid var(--teal-border)', fontWeight: '600' }}
+                    />
+                  </Box>
+
+                  {/* Submit Button */}
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    disabled={uploadedFiles.length === 0 || loading}
+                    onClick={submitUploadedImages}
+                    startIcon={loading ? <CircularProgress size={20} sx={{ color: '#ffffff' }} /> : <Lock />}
+                    sx={{
+                      py: 1.8,
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, var(--amber-accent) 0%, var(--teal-accent) 100%)',
+                      color: '#FFFFFF',
+                      fontWeight: '900',
+                      fontSize: '1rem',
+                      boxShadow: '0 8px 24px var(--amber-border)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, var(--teal-accent) 0%, var(--amber-accent) 100%)',
+                      },
+                    }}
+                  >
+                    {loading ? 'Extracting & Encrypting Template...' : `Register & Encrypt ${uploadedFiles.length} Image(s)`}
+                  </Button>
+                </CardContent>
+              )}
+            </Card>
+          </Grid>
+
+          {/* Gallery / Review Section */}
+          <Grid item xs={12} md={5}>
+            <Card
+              elevation={0}
+              sx={{
+                borderRadius: '20px',
+                background: 'var(--card-solid)',
+                border: '1px solid var(--teal-border)',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
+                height: '100%',
+              }}
+            >
+              <CardContent sx={{ p: 4 }}>
+                <Typography variant="h6" fontWeight="800" sx={{ color: 'var(--text-primary)', mb: 2 }}>
+                  Selected Gallery ({mode === 0 ? capturedImages.length : uploadedFiles.length})
+                </Typography>
+
+                {mode === 0 && (
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))',
+                      gap: 1.5,
+                      minHeight: 180,
+                      border: '1px solid var(--table-border)',
+                      borderRadius: '14px',
+                      p: 2,
+                      background: 'var(--card-inner)',
+                    }}
+                  >
+                    {capturedImages.length === 0 ? (
+                      <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" gridColumn="1 / -1" sx={{ color: 'var(--text-secondary)', py: 4 }}>
+                        <PhotoCamera sx={{ fontSize: 40, color: 'var(--text-muted)', mb: 1 }} />
+                        <Typography variant="body2" fontWeight="600">
+                          Captured camera frames will appear here
                         </Typography>
                       </Box>
-                    ))}
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Box>
-          </Card>
-        </Fade>
+                    ) : (
+                      capturedImages.map((img, i) => (
+                        <Box key={i} sx={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', border: '2px solid var(--teal-accent)', aspectRatio: '1' }}>
+                          <img src={img.imageSrc} alt={`Capture ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </Box>
+                      ))
+                    )}
+                  </Box>
+                )}
+
+                {mode === 1 && (
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+                      gap: 1.5,
+                      minHeight: 180,
+                      border: '1px solid var(--table-border)',
+                      borderRadius: '14px',
+                      p: 2,
+                      background: 'var(--card-inner)',
+                    }}
+                  >
+                    {uploadedPreviews.length === 0 ? (
+                      <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" gridColumn="1 / -1" sx={{ color: 'var(--text-secondary)', py: 4 }}>
+                        <CloudUpload sx={{ fontSize: 40, color: 'var(--text-muted)', mb: 1 }} />
+                        <Typography variant="body2" fontWeight="600">
+                          Uploaded images will appear here
+                        </Typography>
+                      </Box>
+                    ) : (
+                      uploadedPreviews.map((src, i) => (
+                        <Box key={i} sx={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', border: '2px solid var(--teal-accent)', aspectRatio: '1' }}>
+                          <img src={src} alt={`Upload ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <IconButton
+                            size="small"
+                            onClick={() => removeUploadedFile(i)}
+                            sx={{
+                              position: 'absolute',
+                              top: 2,
+                              right: 2,
+                              background: 'rgba(0,0,0,0.6)',
+                              color: '#ffffff',
+                              p: 0.3,
+                              '&:hover': { background: '#dc2626' },
+                            }}
+                          >
+                            <Close sx={{ fontSize: 14 }} />
+                          </IconButton>
+                        </Box>
+                      ))
+                    )}
+                  </Box>
+                )}
+
+                {/* Biometric Standard Box */}
+                <Box sx={{ mt: 3, p: 2.5, borderRadius: '12px', background: 'var(--card-inner)', border: '1px solid var(--table-border)' }}>
+                  <Typography variant="caption" fontWeight="800" sx={{ color: 'var(--amber-accent)', display: 'block', mb: 0.5 }}>
+                    AES-256-GCM ENCRYPTION
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'var(--text-secondary)' }}>
+                    Extracted 128-D vector embeddings are encrypted with Galois/Counter Mode authenticated cryptography before persistence.
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       </Container>
     </Box>
   );
 };
 
-export default FaceCapture; 
+export default FaceCapture;

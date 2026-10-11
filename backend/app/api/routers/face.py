@@ -166,3 +166,71 @@ async def register_face(
                 except OSError:
                     pass
 
+
+@router.post("/register-upload")
+async def register_face_upload(
+    files: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """
+    Register face biometric template directly from uploaded images.
+    Accepts 1 to 10 clear face image files.
+    """
+    if len(files) < 1:
+        raise HTTPException(status_code=400, detail="At least 1 face image is required.")
+    if len(files) > 10:
+        raise HTTPException(status_code=400, detail="Maximum 10 face images allowed.")
+
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    temp_paths = []
+    try:
+        for i, file in enumerate(files):
+            ts = datetime.now().strftime("%Y%m%d%H%M%S%f")
+            path = os.path.join(settings.UPLOAD_DIR, f"enroll_upload_{current_user.unique_id}_{i}_{ts}.jpg")
+            with open(path, "wb") as buffer:
+                buffer.write(await file.read())
+            temp_paths.append(path)
+
+        # Check duplicate against existing enrolled students
+        try:
+            duplicate_user = face_service.find_duplicate_face(temp_paths[0], db, current_user.unique_id)
+        except Exception as e:
+            logger.warning(f"Duplicate check error: {e}")
+            duplicate_user = None
+
+        if duplicate_user:
+            raise HTTPException(
+                status_code=409,
+                detail=f"This face is already registered to user: {duplicate_user['full_name']} (ID: {duplicate_user['unique_id']}). Each person can only register once.",
+            )
+
+        result = face_service.enroll_user(db, current_user, temp_paths)
+        stats = result["statistics"]
+        return {
+            "message": "Face registration successful via uploaded images",
+            "user_id": current_user.unique_id,
+            "statistics": stats,
+            "quality_summary": {
+                "total_images": stats["total_images"],
+                "acceptable_images": stats["acceptable_images"],
+                "average_quality_score": round(stats["average_quality_score"], 2),
+                "upload_mode": True,
+            },
+        }
+    except HTTPException:
+        raise
+    except FaceEnrollmentError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Face upload enrollment failed")
+        raise HTTPException(status_code=500, detail=f"Face registration failed: {str(e)}")
+    finally:
+        for path in temp_paths:
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+
+

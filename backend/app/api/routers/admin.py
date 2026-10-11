@@ -224,12 +224,11 @@ async def delete_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    db.query(Student).filter(
-        (Student.user_id == user.id) | (func.lower(Student.email) == user.email.lower().strip())
-    ).delete()
-    db.query(Attendance).filter(Attendance.user_id == user.id).delete()
-    db.query(FaceImage).filter(FaceImage.user_id == user.id).delete()
-    db.query(FaceEmbedding).filter(FaceEmbedding.user_id == user.id).delete()
+    db.query(Student).filter(Student.user_id == user.id).update({"user_id": None}, synchronize_session=False)
+    db.query(Student).filter(func.lower(Student.email) == user.email.lower().strip()).delete(synchronize_session=False)
+    db.query(Attendance).filter(Attendance.user_id == user.id).delete(synchronize_session=False)
+    db.query(FaceImage).filter(FaceImage.user_id == user.id).delete(synchronize_session=False)
+    db.query(FaceEmbedding).filter(FaceEmbedding.user_id == user.id).delete(synchronize_session=False)
     db.delete(user)
     db.commit()
 
@@ -746,6 +745,17 @@ class StudentCreateRequest(BaseModel):
     class_code: Optional[str] = "BCS703 — Cryptography & Network Security"
 
 
+class StudentUpdateRequest(BaseModel):
+    full_name: Optional[str] = None
+    usn: Optional[str] = None
+    email: Optional[str] = None
+    branch: Optional[str] = None
+    year: Optional[int] = None
+    semester: Optional[int] = None
+    section: Optional[str] = None
+    class_code: Optional[str] = None
+
+
 class SubjectCreateRequest(BaseModel):
     code: str
     name: str
@@ -1052,6 +1062,85 @@ async def create_admin_student(
     }
 
 
+@router.put("/students/{student_id}")
+async def update_admin_student(
+    student_id: int,
+    req: StudentUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(deps.get_current_admin_user),
+):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found.")
+
+    if req.usn:
+        clean_usn = req.usn.strip().upper()
+        if clean_usn != student.usn:
+            existing_usn = db.query(Student).filter(Student.usn == clean_usn, Student.id != student_id).first()
+            if existing_usn:
+                raise HTTPException(status_code=400, detail=f"Student with USN '{clean_usn}' already exists.")
+            student.usn = clean_usn
+
+    if req.email:
+        clean_email = req.email.strip().lower()
+        if clean_email != student.email.lower():
+            existing_student = db.query(Student).filter(func.lower(Student.email) == clean_email, Student.id != student_id).first()
+            if existing_student:
+                raise HTTPException(status_code=400, detail=f"Student with email '{clean_email}' already exists.")
+            student.email = clean_email
+
+    if req.full_name:
+        student.full_name = req.full_name.strip()
+    if req.branch:
+        student.branch = req.branch.strip().upper()
+    if req.year is not None:
+        student.year = int(req.year)
+    if req.semester is not None:
+        student.semester = int(req.semester)
+    if req.section:
+        student.section = req.section.strip().upper()
+    if req.class_code is not None:
+        student.class_code = req.class_code
+
+    student.updated_at = datetime.utcnow()
+
+    # Sync linked user account if exists
+    linked_user = None
+    if student.user_id:
+        linked_user = db.query(User).filter(User.id == student.user_id).first()
+    if not linked_user and student.email:
+        linked_user = db.query(User).filter(func.lower(User.email) == student.email.lower().strip()).first()
+
+    if linked_user:
+        if req.full_name:
+            linked_user.full_name = student.full_name
+        if req.email:
+            linked_user.email = student.email
+        if req.usn:
+            linked_user.unique_id = student.usn
+        if req.branch:
+            linked_user.department = student.branch
+
+    db.commit()
+    db.refresh(student)
+
+    return {
+        "message": f"Student '{student.full_name}' ({student.usn}) updated successfully.",
+        "student": {
+            "id": student.id,
+            "usn": student.usn,
+            "full_name": student.full_name,
+            "email": student.email,
+            "branch": student.branch,
+            "year": student.year,
+            "semester": student.semester,
+            "section": student.section,
+            "class_code": student.class_code,
+            "user_id": student.user_id,
+        },
+    }
+
+
 @router.delete("/students/{student_id}")
 async def delete_admin_student(
     student_id: int,
@@ -1078,17 +1167,20 @@ async def delete_admin_student(
 
     # If linked user exists, purge all attendance, biometric data, and user account
     if linked_user:
-        db.query(Attendance).filter(Attendance.user_id == linked_user.id).delete()
-        db.query(FaceImage).filter(FaceImage.user_id == linked_user.id).delete()
-        db.query(FaceEmbedding).filter(FaceEmbedding.user_id == linked_user.id).delete()
+        db.query(Student).filter(Student.user_id == linked_user.id).update({"user_id": None}, synchronize_session=False)
+        db.query(Attendance).filter(Attendance.user_id == linked_user.id).delete(synchronize_session=False)
+        db.query(FaceImage).filter(FaceImage.user_id == linked_user.id).delete(synchronize_session=False)
+        db.query(FaceEmbedding).filter(FaceEmbedding.user_id == linked_user.id).delete(synchronize_session=False)
         db.delete(linked_user)
 
     # Delete the student record(s) matching this ID, email, or USN
-    db.query(Student).filter(
+    students_to_delete = db.query(Student).filter(
         (Student.id == student_id)
         | (func.lower(Student.email) == student_email.lower().strip())
         | (func.upper(Student.usn) == student_usn.upper().strip())
-    ).delete()
+    ).all()
+    for s in students_to_delete:
+        db.delete(s)
 
     db.commit()
 

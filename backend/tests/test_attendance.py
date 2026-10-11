@@ -157,12 +157,12 @@ async def test_attendance_overrides_absent_to_present(client, admin_token):
 
     assert resp.status_code == 200, resp.text
     assert resp.json()["attendance"]["status"] == "present"
-    assert "absent to present" in resp.json()["message"].lower()
+    assert "status changed to present" in resp.json()["message"].lower() or "absent to present" in resp.json()["message"].lower()
 
 
 def test_one_attendance_row_per_user_per_day(db_session):
     """
-    The uq_attendance_user_date constraint is what actually prevents duplicate
+    The uq_attendance_user_date_subject_period constraint is what actually prevents duplicate
     rows when two concurrent marks both pass the application-level check.
     """
     from app.models import Attendance, User
@@ -178,11 +178,11 @@ def test_one_attendance_row_per_user_per_day(db_session):
     db_session.commit()
 
     today = date_cls.today()
-    db_session.add(Attendance(user_id=user.id, date=today, time_in=time(9, 0), status="present"))
+    db_session.add(Attendance(user_id=user.id, date=today, subject_id=1, period=1, time_in=time(9, 0), status="present"))
     db_session.commit()
 
-    # Second row for the same user and day must be rejected by the database.
-    db_session.add(Attendance(user_id=user.id, date=today, time_in=time(10, 0), status="present"))
+    # Second row for the same user, day, subject, and period must be rejected by the database.
+    db_session.add(Attendance(user_id=user.id, date=today, subject_id=1, period=1, time_in=time(10, 0), status="present"))
     with pytest.raises(IntegrityError):
         db_session.commit()
     db_session.rollback()

@@ -77,6 +77,18 @@ export const faceAPI = {
       },
     });
   },
+  registerFaceUpload: (files) => {
+    const formData = new FormData();
+    const imageList = Array.isArray(files) ? files : [files];
+    imageList.forEach((file) => {
+      formData.append('files', file);
+    });
+    return api.post('/face/register-upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 };
 
 // Attendance APIs
@@ -91,6 +103,22 @@ export const attendanceAPI = {
       formData.append('challenge_id', challengeId);
     }
     return api.post('/attendance/mark', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  markAttendanceUpload: (imageFiles, subjectCode = null, period = null) => {
+    const formData = new FormData();
+    const frames = Array.isArray(imageFiles) ? imageFiles : [imageFiles];
+    frames.forEach((f) => formData.append('files', f));
+    if (subjectCode) {
+      formData.append('subject_code', subjectCode);
+    }
+    if (period !== null && period !== undefined) {
+      formData.append('period', period);
+    }
+    return api.post('/attendance/mark-upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -226,6 +254,7 @@ export const adminAPI = {
     return api.get(`/admin/students?${q.toString()}`);
   },
   createStudent: (data) => api.post('/admin/students', data),
+  updateStudent: (studentId, data) => api.put(`/admin/students/${studentId}`, data),
   deleteStudent: (studentId) => api.delete(`/admin/students/${studentId}`),
   getStudentDetails: (studentId) => api.get(`/admin/students/${studentId}/details`),
   verifyStudentBiometric: (studentId) => api.post(`/admin/students/${studentId}/verify-biometric`),

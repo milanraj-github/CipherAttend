@@ -10,6 +10,11 @@ class UserCreate(BaseModel):
     full_name: str
     phone_number: Optional[str] = None
     department: Optional[str] = None
+    usn: Optional[str] = None
+    branch: Optional[str] = None
+    year: Optional[int] = None
+    semester: Optional[int] = None
+    section: Optional[str] = None
 
 
 class UserResponse(BaseModel):

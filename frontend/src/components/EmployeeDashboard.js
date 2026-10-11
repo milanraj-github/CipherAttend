@@ -167,7 +167,7 @@ const EmployeeDashboard = () => {
   }
 
   return (
-    <Box sx={{ background: 'linear-gradient(135deg, #070A0F 0%, #0D131F 50%, #0A0E17 100%)', minHeight: '100vh', py: 4, color: '#F3F4F6' }}>
+    <Box sx={{ background: 'var(--bg-gradient)', minHeight: '100vh', py: 4, color: 'var(--text-primary)' }}>
       <Container maxWidth="xl">
         {/* Hero Section with Split Layout */}
         <Fade in timeout={600}>

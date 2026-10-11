@@ -23,6 +23,16 @@ import {
 } from '@mui/material';
 import {
   Close as CloseIcon,
+  Person,
+  AccountCircle,
+  VpnKey,
+  Edit,
+  Save,
+  Cancel,
+  CheckCircle,
+  Face,
+  School,
+  Badge,
 } from '@mui/icons-material';
 import { userAPI } from '../services/api';
 
@@ -64,9 +74,9 @@ const UserProfile = () => {
         phone_number: response.data.phone_number || '',
         department: response.data.department || '',
       });
-    } catch (error) {
+    } catch (err) {
       setError('Failed to load profile');
-      console.error('Profile fetch error:', error);
+      console.error('Profile fetch error:', err);
     } finally {
       setLoading(false);
     }
@@ -85,16 +95,16 @@ const UserProfile = () => {
       setUser(response.data.user);
       setSuccess('Profile updated successfully!');
       setEditMode(false);
-    } catch (error) {
+    } catch (err) {
       let errorMsg = 'Failed to update profile';
-      if (error.response?.status === 400) {
-        errorMsg = error.response?.data?.detail || 'Invalid data. Please check your inputs.';
-      } else if (error.response?.status === 401) {
+      if (err.response?.status === 400) {
+        errorMsg = err.response?.data?.detail || 'Invalid data. Please check your inputs.';
+      } else if (err.response?.status === 401) {
         errorMsg = 'Authentication expired. Please log in again.';
-      } else if (error.response?.status === 409) {
+      } else if (err.response?.status === 409) {
         errorMsg = 'Email already in use by another account.';
-      } else if (error.response?.data?.detail) {
-        errorMsg = error.response.data.detail;
+      } else if (err.response?.data?.detail) {
+        errorMsg = err.response.data.detail;
       }
       setError(errorMsg);
     } finally {
@@ -132,14 +142,14 @@ const UserProfile = () => {
         new_password: '',
         confirm_password: '',
       });
-    } catch (error) {
+    } catch (err) {
       let errorMsg = 'Failed to change password';
-      if (error.response?.status === 400) {
-        errorMsg = error.response?.data?.detail || 'Invalid password. Please check your current password.';
-      } else if (error.response?.status === 401) {
+      if (err.response?.status === 400) {
+        errorMsg = err.response?.data?.detail || 'Invalid password. Please check your current password.';
+      } else if (err.response?.status === 401) {
         errorMsg = 'Current password is incorrect. Please try again.';
-      } else if (error.response?.data?.detail) {
-        errorMsg = error.response.data.detail;
+      } else if (err.response?.data?.detail) {
+        errorMsg = err.response.data.detail;
       }
       setError(errorMsg);
     } finally {
@@ -164,11 +174,7 @@ const UserProfile = () => {
     
     try {
       const response = await userAPI.getRegisteredFaces();
-      console.log('Face API Response:', response); // Debug log
-      
-      // Check if response has data
       if (response && response.data) {
-        // Ensure faces array exists
         if (!response.data.faces) {
           response.data.faces = [];
         }
@@ -176,18 +182,31 @@ const UserProfile = () => {
       } else {
         setError('Invalid response from server');
       }
-    } catch (error) {
-      console.error('Error loading faces:', error); // Debug log
+    } catch (err) {
       let errorMsg = 'Failed to load registered faces';
-      if (error.response?.status === 404) {
+      if (err.response?.status === 404) {
         errorMsg = 'No face data found. Please register your face first.';
-      } else if (error.response?.data?.detail) {
-        errorMsg = error.response.data.detail;
+      } else if (err.response?.data?.detail) {
+        errorMsg = err.response.data.detail;
       }
       setError(errorMsg);
     } finally {
       setLoadingFaces(false);
     }
+  };
+
+  const inputStyles = {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: '10px',
+      background: 'var(--card-inner)',
+      border: '1px solid var(--teal-border)',
+      color: 'var(--text-primary)',
+      '& fieldset': { border: 'none' },
+      '& input': { color: 'var(--text-primary)' },
+      '&:hover': { border: '1px solid var(--amber-border)' },
+      '&.Mui-focused': { border: '1px solid var(--teal-accent)', boxShadow: '0 0 10px var(--teal-border)' },
+    },
+    '& .MuiInputLabel-root': { color: 'var(--text-secondary)' },
   };
 
   if (loading) {
@@ -197,73 +216,96 @@ const UserProfile = () => {
         justifyContent="center" 
         alignItems="center" 
         minHeight="60vh"
-        sx={{ background: '#fafafa' }}
+        sx={{ background: 'var(--bg-primary)' }}
       >
-        <CircularProgress size={40} sx={{ color: '#6b7280' }} />
+        <CircularProgress size={40} sx={{ color: 'var(--teal-accent)' }} />
       </Box>
     );
   }
 
   return (
-    <Box sx={{ background: 'linear-gradient(135deg, #f5f3f0 0%, #fafaf9 50%, #ffffff 100%)', minHeight: '100vh', py: 4 }}>
+    <Box sx={{ background: 'var(--bg-gradient)', minHeight: '100vh', py: 4, px: 2 }}>
       <Container maxWidth="lg">
-        <Fade in timeout={800}>
+        <Fade in timeout={600}>
           <Card
             elevation={0}
             sx={{
-              border: '1px solid rgba(0,0,0,0.08)',
+              border: '1px solid var(--teal-border)',
               borderRadius: '20px',
-              background: '#ffffff',
+              background: 'var(--card-solid)',
               overflow: 'hidden',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
             }}
           >
-            {/* Header */}
-            <Box sx={{ p: 4, borderBottom: '1px solid #f3f4f6' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            {/* Header Banner */}
+            <Box sx={{ p: { xs: 3, sm: 4 }, borderBottom: '1px solid var(--table-border)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
                   <Avatar 
                     sx={{ 
                       width: 64, 
                       height: 64, 
-                      background: 'linear-gradient(135deg, #212E46, #2c3e5a)',
+                      background: 'linear-gradient(135deg, var(--amber-accent), var(--teal-accent))',
+                      color: '#070A0F',
                       fontSize: '1.75rem',
                       fontWeight: 'bold',
+                      boxShadow: '0 4px 15px var(--amber-border)',
                     }}
                   >
                     {user?.full_name?.charAt(0) || 'U'}
                   </Avatar>
                   <Box>
-                    <Typography variant="h5" fontWeight="700" sx={{ color: '#212E46', letterSpacing: '-0.025em', mb: 1, fontFamily: '"Inter", sans-serif' }}>
-                      My Profile
+                    <Typography variant="h5" fontWeight="900" sx={{ color: 'var(--text-primary)', letterSpacing: '-0.02em', mb: 0.8, fontFamily: '"Inter", sans-serif' }}>
+                      {user?.full_name || 'My Profile'}
                     </Typography>
-                    <Chip 
-                      label={user?.role === 'admin' ? 'Admin' : 'User'}
-                      sx={{
-                        background: user?.role === 'admin' ? '#ffedd5' : '#dbeafe',
-                        color: user?.role === 'admin' ? '#f97316' : '#212E46',
-                        fontWeight: '600',
-                        fontSize: '0.75rem',
-                        fontFamily: '"Inter", sans-serif',
-                      }}
-                    />
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Chip 
+                        label={user?.role === 'admin' ? '● ADMIN' : '● STUDENT / USER'}
+                        size="small"
+                        sx={{
+                          background: user?.role === 'admin' ? 'rgba(255, 176, 0, 0.15)' : 'rgba(0, 224, 198, 0.15)',
+                          color: user?.role === 'admin' ? 'var(--amber-accent)' : 'var(--teal-accent)',
+                          fontWeight: '800',
+                          fontSize: '0.75rem',
+                          fontFamily: 'monospace',
+                          border: `1px solid ${user?.role === 'admin' ? 'var(--amber-border)' : 'var(--teal-border)'}`,
+                        }}
+                      />
+                      {user?.usn && (
+                        <Chip
+                          label={`USN: ${user.usn}`}
+                          size="small"
+                          sx={{
+                            background: 'var(--card-inner)',
+                            color: 'var(--text-primary)',
+                            fontWeight: '700',
+                            fontSize: '0.75rem',
+                            fontFamily: 'monospace',
+                            border: '1px solid var(--teal-border)',
+                          }}
+                        />
+                      )}
+                    </Stack>
                   </Box>
                 </Box>
                 
-                <Box sx={{ display: 'flex', gap: 2 }}>
+                {/* Action Buttons */}
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
                   {!editMode ? (
                     <Button
                       variant="outlined"
+                      startIcon={<Edit />}
                       onClick={() => setEditMode(true)}
                       sx={{
-                        borderRadius: '8px',
-                        border: '1px solid #e5e7eb',
-                        color: '#6b7280',
+                        borderRadius: '10px',
+                        border: '1px solid var(--teal-border)',
+                        color: 'var(--teal-accent)',
+                        background: 'var(--card-inner)',
                         textTransform: 'none',
-                        fontWeight: '500',
+                        fontWeight: '700',
                         '&:hover': {
-                          border: '1px solid #d1d5db',
-                          background: '#f9fafb',
+                          border: '1px solid var(--teal-accent)',
+                          background: 'rgba(0, 224, 198, 0.12)',
                         },
                       }}
                     >
@@ -274,41 +316,28 @@ const UserProfile = () => {
                       <Button
                         variant="contained"
                         disabled={updateLoading}
-                        startIcon={updateLoading ? <CircularProgress size={16} sx={{ color: '#ffffff' }} /> : null}
+                        startIcon={updateLoading ? <CircularProgress size={16} sx={{ color: '#ffffff' }} /> : <Save />}
                         onClick={handleProfileUpdate}
                         sx={{
-                          borderRadius: '12px',
-                          background: 'linear-gradient(135deg, #212E46 0%, #2c3e5a 100%)',
+                          borderRadius: '10px',
+                          background: 'linear-gradient(135deg, var(--amber-accent), var(--teal-accent))',
+                          color: '#FFFFFF',
                           textTransform: 'none',
-                          fontWeight: '600',
-                          fontFamily: '"Inter", sans-serif',
-                          boxShadow: '0 4px 12px rgba(33,46,70,0.2)',
-                          '&:hover': {
-                            background: 'linear-gradient(135deg, #1a2333 0%, #212E46 100%)',
-                            boxShadow: '0 6px 16px rgba(33,46,70,0.25)',
-                          },
-                          '&:disabled': {
-                            background: 'linear-gradient(135deg, #212E46 0%, #2c3e5a 100%)',
-                            opacity: 0.6,
-                          },
+                          fontWeight: '800',
                         }}
                       >
-                        {updateLoading ? 'Saving...' : 'Save'}
+                        {updateLoading ? 'Saving...' : 'Save Changes'}
                       </Button>
                       <Button
                         variant="outlined"
+                        startIcon={<Cancel />}
                         onClick={handleCancelEdit}
                         sx={{
-                          borderRadius: '12px',
-                          border: '2px solid #e7e5e4',
-                          color: '#78716c',
+                          borderRadius: '10px',
+                          border: '1px solid var(--table-border)',
+                          color: 'var(--text-secondary)',
                           textTransform: 'none',
                           fontWeight: '600',
-                          fontFamily: '"Inter", sans-serif',
-                          '&:hover': {
-                            border: '2px solid #d6d3d1',
-                            background: '#fafaf9',
-                          },
                         }}
                       >
                         Cancel
@@ -317,17 +346,18 @@ const UserProfile = () => {
                   )}
                   <Button
                     variant="outlined"
+                    startIcon={<VpnKey />}
                     onClick={() => setPasswordDialogOpen(true)}
                     sx={{
-                      borderRadius: '12px',
-                      border: '2px solid #e7e5e4',
-                      color: '#78716c',
+                      borderRadius: '10px',
+                      border: '1px solid var(--amber-border)',
+                      color: 'var(--amber-accent)',
+                      background: 'var(--card-inner)',
                       textTransform: 'none',
-                      fontWeight: '600',
-                      fontFamily: '"Inter", sans-serif',
+                      fontWeight: '700',
                       '&:hover': {
-                        border: '2px solid #d6d3d1',
-                        background: '#fafaf9',
+                        border: '1px solid var(--amber-accent)',
+                        background: 'rgba(255, 176, 0, 0.12)',
                       },
                     }}
                   >
@@ -338,214 +368,171 @@ const UserProfile = () => {
 
               {/* Alerts */}
               {error && (
-                <Alert 
-                  severity="error" 
-                  sx={{ 
-                    mt: 3,
-                    borderRadius: '8px',
-                    border: '1px solid #fecaca',
-                    background: '#fef2f2',
-                    color: '#dc2626',
-                  }}
-                  action={
-                    <IconButton
-                      color="inherit"
-                      size="small"
-                      onClick={() => setError('')}
-                    >
-                      <CloseIcon fontSize="inherit" />
-                    </IconButton>
-                  }
-                >
-                  {error}
-                </Alert>
+                <Fade in>
+                  <Alert 
+                    severity="error" 
+                    sx={{ mt: 3, borderRadius: '10px', fontWeight: '700' }}
+                    action={
+                      <IconButton color="inherit" size="small" onClick={() => setError('')}>
+                        <CloseIcon fontSize="inherit" />
+                      </IconButton>
+                    }
+                  >
+                    {error}
+                  </Alert>
+                </Fade>
               )}
               {success && (
-                <Alert 
-                  severity="success" 
-                  sx={{ 
-                    mt: 3,
-                    borderRadius: '8px',
-                    border: '1px solid #dcfce7',
-                    background: '#f0fdf4',
-                    color: '#16a34a',
-                  }}
-                  action={
-                    <IconButton
-                      color="inherit"
-                      size="small"
-                      onClick={() => setSuccess('')}
-                    >
-                      <CloseIcon fontSize="inherit" />
-                    </IconButton>
-                  }
-                >
-                  {success}
-                </Alert>
+                <Fade in>
+                  <Alert 
+                    severity="success" 
+                    sx={{ mt: 3, borderRadius: '10px', fontWeight: '700' }}
+                    action={
+                      <IconButton color="inherit" size="small" onClick={() => setSuccess('')}>
+                        <CloseIcon fontSize="inherit" />
+                      </IconButton>
+                    }
+                  >
+                    {success}
+                  </Alert>
+                </Fade>
               )}
             </Box>
 
-            {/* Profile Information */}
-            <Box sx={{ p: 4 }}>
+            {/* Profile Content Body */}
+            <Box sx={{ p: { xs: 3, sm: 4 } }}>
               <Grid container spacing={4}>
+                {/* LEFT: Personal Information */}
                 <Grid item xs={12} md={6}>
-                  <Box sx={{ mb: 4 }}>
-                    <Typography variant="h6" fontWeight="700" sx={{ color: '#212E46', mb: 3, fontFamily: '"Inter", sans-serif' }}>
-                      Personal Information
-                    </Typography>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 3,
+                      borderRadius: '16px',
+                      background: 'var(--card-inner)',
+                      border: '1px solid var(--teal-border)',
+                    }}
+                  >
+                    <Box display="flex" alignItems="center" gap={1.5} mb={2.5}>
+                      <Person sx={{ color: 'var(--teal-accent)' }} />
+                      <Typography variant="h6" fontWeight="800" sx={{ color: 'var(--teal-accent)', fontFamily: '"Inter", sans-serif' }}>
+                        Personal Information
+                      </Typography>
+                    </Box>
                     
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                      <Box>
+                        <Typography variant="caption" fontWeight="700" sx={{ color: 'var(--text-secondary)', display: 'block', mb: 0.5 }}>
+                          FULL NAME
+                        </Typography>
                         {editMode ? (
                           <TextField
                             fullWidth
-                            label="Full Name"
                             value={profileForm.full_name}
-                            onChange={(e) => setProfileForm({
-                              ...profileForm,
-                              full_name: e.target.value
-                            })}
+                            onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
                             size="small"
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                borderRadius: '8px',
-                                background: '#f9fafb',
-                                border: '1px solid #e5e7eb',
-                                '& fieldset': {
-                                  border: 'none',
-                                },
-                                '&:hover': {
-                                  background: '#f3f4f6',
-                                },
-                                '&.Mui-focused': {
-                                  background: '#ffffff',
-                                  boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)',
-                                  border: '1px solid #3b82f6',
-                                },
-                              },
-                            }}
+                            sx={inputStyles}
                           />
                         ) : (
-                          <Typography variant="body1" sx={{ color: '#1f2937' }}>
+                          <Typography variant="body1" fontWeight="700" sx={{ color: 'var(--text-primary)' }}>
                             {user?.full_name}
                           </Typography>
                         )}
                       </Box>
 
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Typography variant="body1" sx={{ color: '#1f2937' }}>
+                      <Box>
+                        <Typography variant="caption" fontWeight="700" sx={{ color: 'var(--text-secondary)', display: 'block', mb: 0.5 }}>
+                          EMAIL ADDRESS
+                        </Typography>
+                        <Typography variant="body1" fontWeight="700" sx={{ color: 'var(--text-primary)', fontFamily: 'monospace' }}>
                           {user?.email}
                         </Typography>
                       </Box>
 
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Box>
+                        <Typography variant="caption" fontWeight="700" sx={{ color: 'var(--text-secondary)', display: 'block', mb: 0.5 }}>
+                          PHONE NUMBER
+                        </Typography>
                         {editMode ? (
                           <TextField
                             fullWidth
-                            label="Phone Number"
                             value={profileForm.phone_number}
-                            onChange={(e) => setProfileForm({
-                              ...profileForm,
-                              phone_number: e.target.value
-                            })}
+                            onChange={(e) => setProfileForm({ ...profileForm, phone_number: e.target.value })}
                             size="small"
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                borderRadius: '8px',
-                                background: '#f9fafb',
-                                border: '1px solid #e5e7eb',
-                                '& fieldset': {
-                                  border: 'none',
-                                },
-                                '&:hover': {
-                                  background: '#f3f4f6',
-                                },
-                                '&.Mui-focused': {
-                                  background: '#ffffff',
-                                  boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)',
-                                  border: '1px solid #3b82f6',
-                                },
-                              },
-                            }}
+                            sx={inputStyles}
                           />
                         ) : (
-                          <Typography variant="body1" sx={{ color: '#1f2937' }}>
+                          <Typography variant="body1" fontWeight="700" sx={{ color: 'var(--text-primary)' }}>
                             {user?.phone_number || 'Not provided'}
                           </Typography>
                         )}
                       </Box>
 
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Box>
+                        <Typography variant="caption" fontWeight="700" sx={{ color: 'var(--text-secondary)', display: 'block', mb: 0.5 }}>
+                          DEPARTMENT / BRANCH
+                        </Typography>
                         {editMode ? (
                           <TextField
                             fullWidth
-                            label="Department"
                             value={profileForm.department}
-                            onChange={(e) => setProfileForm({
-                              ...profileForm,
-                              department: e.target.value
-                            })}
+                            onChange={(e) => setProfileForm({ ...profileForm, department: e.target.value })}
                             size="small"
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                borderRadius: '8px',
-                                background: '#f9fafb',
-                                border: '1px solid #e5e7eb',
-                                '& fieldset': {
-                                  border: 'none',
-                                },
-                                '&:hover': {
-                                  background: '#f3f4f6',
-                                },
-                                '&.Mui-focused': {
-                                  background: '#ffffff',
-                                  boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)',
-                                  border: '1px solid #3b82f6',
-                                },
-                              },
-                            }}
+                            sx={inputStyles}
                           />
                         ) : (
-                          <Typography variant="body1" sx={{ color: '#1f2937' }}>
-                            {user?.department || 'CSE'}
+                          <Typography variant="body1" fontWeight="700" sx={{ color: 'var(--text-primary)' }}>
+                            {user?.department || 'Computer Science & Engineering (CSE)'}
                           </Typography>
                         )}
                       </Box>
                     </Box>
-                  </Box>
+                  </Paper>
                 </Grid>
 
+                {/* RIGHT: Account & Biometric Information */}
                 <Grid item xs={12} md={6}>
-                  <Box sx={{ mb: 4 }}>
-                    <Typography variant="h6" fontWeight="700" sx={{ color: '#212E46', mb: 3, fontFamily: '"Inter", sans-serif' }}>
-                      Account Information
-                    </Typography>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 3,
+                      borderRadius: '16px',
+                      background: 'var(--card-inner)',
+                      border: '1px solid var(--amber-border)',
+                    }}
+                  >
+                    <Box display="flex" alignItems="center" gap={1.5} mb={2.5}>
+                      <AccountCircle sx={{ color: 'var(--amber-accent)' }} />
+                      <Typography variant="h6" fontWeight="800" sx={{ color: 'var(--amber-accent)', fontFamily: '"Inter", sans-serif' }}>
+                        Account & Biometrics
+                      </Typography>
+                    </Box>
                     
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
                       <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                          <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
-                            User ID
-                          </Typography>
-                        </Box>
-                        <Typography variant="body1" sx={{ color: '#1f2937', fontFamily: 'monospace', ml: 3 }}>
-                          {user?.unique_id}
+                        <Typography variant="caption" fontWeight="700" sx={{ color: 'var(--text-secondary)', display: 'block', mb: 0.5 }}>
+                          STUDENT USER ID / USN
+                        </Typography>
+                        <Typography variant="body1" fontWeight="800" sx={{ color: 'var(--teal-accent)', fontFamily: 'monospace' }}>
+                          {user?.usn || user?.unique_id}
                         </Typography>
                       </Box>
 
                       <Box>
-                        <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500, mb: 1 }}>
-                          Face Registration Status
+                        <Typography variant="caption" fontWeight="700" sx={{ color: 'var(--text-secondary)', display: 'block', mb: 0.5 }}>
+                          BIOMETRIC FACE ENROLLMENT
                         </Typography>
-                        <Stack direction="row" spacing={2} alignItems="center">
+                        <Stack direction="row" spacing={1.5} alignItems="center" mt={0.5}>
                           <Chip 
-                            label={user?.face_registered ? 'Registered' : 'Pending'} 
+                            label={user?.face_registered ? '✓ ENROLLED & ENCRYPTED' : 'PENDING ENROLLMENT'} 
+                            size="small"
                             sx={{
-                              background: user?.face_registered ? '#dcfce7' : '#fef3c7',
-                              color: user?.face_registered ? '#16a34a' : '#d97706',
-                              fontWeight: '500',
+                              background: user?.face_registered ? 'rgba(0, 224, 198, 0.15)' : 'rgba(255, 176, 0, 0.15)',
+                              color: user?.face_registered ? 'var(--teal-accent)' : 'var(--amber-accent)',
+                              border: `1px solid ${user?.face_registered ? 'var(--teal-border)' : 'var(--amber-border)'}`,
+                              fontWeight: '800',
                               fontSize: '0.75rem',
-                              ml: 0,
+                              fontFamily: 'monospace',
                             }}
                           />
                           {user?.face_registered ? (
@@ -555,16 +542,12 @@ const UserProfile = () => {
                               onClick={handleViewRegisteredFaces}
                               sx={{
                                 borderRadius: '8px',
-                                border: '1px solid #e5e7eb',
-                                color: '#6b7280',
+                                border: '1px solid var(--teal-border)',
+                                color: 'var(--teal-accent)',
                                 textTransform: 'none',
-                                fontWeight: '600',
+                                fontWeight: '700',
                                 fontSize: '0.75rem',
-                                fontFamily: '"Inter", sans-serif',
-                                '&:hover': {
-                                  border: '1px solid #d1d5db',
-                                  background: '#f9fafb',
-                                },
+                                '&:hover': { background: 'rgba(0, 224, 198, 0.1)' },
                               }}
                             >
                               View Faces
@@ -576,17 +559,11 @@ const UserProfile = () => {
                               onClick={() => window.location.href = '/face-capture'}
                               sx={{
                                 borderRadius: '8px',
-                                background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)',
-                                color: '#ffffff',
+                                background: 'linear-gradient(135deg, var(--amber-accent), var(--teal-accent))',
+                                color: '#FFFFFF',
                                 textTransform: 'none',
-                                fontWeight: '600',
+                                fontWeight: '800',
                                 fontSize: '0.75rem',
-                                fontFamily: '"Inter", sans-serif',
-                                boxShadow: '0 2px 8px rgba(249,115,22,0.3)',
-                                '&:hover': {
-                                  background: 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)',
-                                  boxShadow: '0 4px 12px rgba(249,115,22,0.4)',
-                                },
                               }}
                             >
                               Register Face
@@ -596,38 +573,40 @@ const UserProfile = () => {
                       </Box>
 
                       <Box>
-                        <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500, mb: 1 }}>
-                          Account Status
+                        <Typography variant="caption" fontWeight="700" sx={{ color: 'var(--text-secondary)', display: 'block', mb: 0.5 }}>
+                          ACCOUNT STATUS
                         </Typography>
                         <Chip 
-                          label={user?.is_active ? 'Active' : 'Inactive'} 
+                          label={user?.is_active ? 'ACTIVE' : 'INACTIVE'} 
+                          size="small"
                           sx={{
-                            background: user?.is_active ? '#dcfce7' : '#fecaca',
-                            color: user?.is_active ? '#16a34a' : '#dc2626',
-                            fontWeight: '500',
+                            background: user?.is_active ? 'rgba(0, 224, 198, 0.15)' : 'rgba(220, 38, 38, 0.15)',
+                            color: user?.is_active ? 'var(--teal-accent)' : '#dc2626',
+                            border: `1px solid ${user?.is_active ? 'var(--teal-border)' : '#dc2626'}`,
+                            fontWeight: '800',
                             fontSize: '0.75rem',
-                            ml: 0,
+                            fontFamily: 'monospace',
                           }}
                         />
                       </Box>
 
                       <Box>
-                        <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500, mb: 1 }}>
-                          Member Since
+                        <Typography variant="caption" fontWeight="700" sx={{ color: 'var(--text-secondary)', display: 'block', mb: 0.5 }}>
+                          MEMBER SINCE
                         </Typography>
-                        <Typography variant="body1" sx={{ color: '#1f2937' }}>
-                          {user?.created_at ? new Date(user.created_at).toLocaleDateString() : '09/06/2025'}
+                        <Typography variant="body1" fontWeight="700" sx={{ color: 'var(--text-primary)' }}>
+                          {user?.created_at ? new Date(user.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'Recently Enrolled'}
                         </Typography>
                       </Box>
                     </Box>
-                  </Box>
+                  </Paper>
                 </Grid>
               </Grid>
             </Box>
           </Card>
         </Fade>
 
-        {/* Password Change Dialog */}
+        {/* Change Password Modal */}
         <Dialog 
           open={passwordDialogOpen} 
           onClose={() => setPasswordDialogOpen(false)} 
@@ -636,111 +615,48 @@ const UserProfile = () => {
           PaperProps={{
             sx: {
               borderRadius: '20px',
-              border: '1px solid rgba(0,0,0,0.08)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              background: 'var(--card-solid)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--teal-border)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
             },
           }}
         >
-          <DialogTitle sx={{ color: '#212E46', fontWeight: '700', pb: 2, fontFamily: '"Inter", sans-serif' }}>
-            Change Password
+          <DialogTitle sx={{ color: 'var(--amber-accent)', fontWeight: '800', pb: 1, fontFamily: '"Inter", sans-serif' }}>
+            Change Account Password
           </DialogTitle>
-          <DialogContent sx={{ px: 3 }}>
-            <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <DialogContent sx={{ px: 3, pt: 2 }}>
+            <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
               <TextField
                 fullWidth
                 type="password"
                 label="Current Password"
                 value={passwordForm.current_password}
-                onChange={(e) => setPasswordForm({
-                  ...passwordForm,
-                  current_password: e.target.value
-                })}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '8px',
-                    background: '#f9fafb',
-                    border: '1px solid #e5e7eb',
-                    '& fieldset': {
-                      border: 'none',
-                    },
-                    '&:hover': {
-                      background: '#f3f4f6',
-                    },
-                    '&.Mui-focused': {
-                      background: '#ffffff',
-                      boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)',
-                      border: '1px solid #3b82f6',
-                    },
-                  },
-                }}
+                onChange={(e) => setPasswordForm({ ...passwordForm, current_password: e.target.value })}
+                sx={inputStyles}
               />
               <TextField
                 fullWidth
                 type="password"
                 label="New Password"
                 value={passwordForm.new_password}
-                onChange={(e) => setPasswordForm({
-                  ...passwordForm,
-                  new_password: e.target.value
-                })}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '8px',
-                    background: '#f9fafb',
-                    border: '1px solid #e5e7eb',
-                    '& fieldset': {
-                      border: 'none',
-                    },
-                    '&:hover': {
-                      background: '#f3f4f6',
-                    },
-                    '&.Mui-focused': {
-                      background: '#ffffff',
-                      boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)',
-                      border: '1px solid #3b82f6',
-                    },
-                  },
-                }}
+                onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
+                sx={inputStyles}
               />
               <TextField
                 fullWidth
                 type="password"
                 label="Confirm New Password"
                 value={passwordForm.confirm_password}
-                onChange={(e) => setPasswordForm({
-                  ...passwordForm,
-                  confirm_password: e.target.value
-                })}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '8px',
-                    background: '#f9fafb',
-                    border: '1px solid #e5e7eb',
-                    '& fieldset': {
-                      border: 'none',
-                    },
-                    '&:hover': {
-                      background: '#f3f4f6',
-                    },
-                    '&.Mui-focused': {
-                      background: '#ffffff',
-                      boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)',
-                      border: '1px solid #3b82f6',
-                    },
-                  },
-                }}
+                onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
+                sx={inputStyles}
               />
             </Box>
           </DialogContent>
-          <DialogActions sx={{ p: 3, gap: 2 }}>
+          <DialogActions sx={{ p: 3, gap: 1.5 }}>
             <Button 
               onClick={() => setPasswordDialogOpen(false)}
-              sx={{
-                borderRadius: '8px',
-                textTransform: 'none',
-                fontWeight: '500',
-                color: '#6b7280',
-              }}
+              sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: '600', color: 'var(--text-secondary)' }}
             >
               Cancel
             </Button>
@@ -750,28 +666,19 @@ const UserProfile = () => {
               disabled={passwordLoading}
               startIcon={passwordLoading ? <CircularProgress size={16} sx={{ color: '#ffffff' }} /> : null}
               sx={{
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, #212E46 0%, #2c3e5a 100%)',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, var(--amber-accent), var(--teal-accent))',
+                color: '#FFFFFF',
                 textTransform: 'none',
-                fontWeight: '600',
-                fontFamily: '"Inter", sans-serif',
-                boxShadow: '0 4px 12px rgba(33,46,70,0.2)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #1a2333 0%, #212E46 100%)',
-                  boxShadow: '0 6px 16px rgba(33,46,70,0.25)',
-                },
-                '&:disabled': {
-                  background: 'linear-gradient(135deg, #212E46 0%, #2c3e5a 100%)',
-                  opacity: 0.6,
-                },
+                fontWeight: '800',
               }}
             >
-              {passwordLoading ? 'Changing...' : 'Change Password'}
+              {passwordLoading ? 'Updating...' : 'Update Password'}
             </Button>
           </DialogActions>
         </Dialog>
 
-        {/* View Registered Faces Dialog */}
+        {/* View Registered Faces Modal */}
         <Dialog 
           open={viewFacesDialogOpen} 
           onClose={() => setViewFacesDialogOpen(false)} 
@@ -780,213 +687,94 @@ const UserProfile = () => {
           PaperProps={{
             sx: {
               borderRadius: '20px',
-              border: '1px solid rgba(0,0,0,0.08)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              background: 'var(--card-solid)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--teal-border)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
             },
           }}
         >
           <DialogTitle sx={{ 
-            color: '#212E46', 
-            fontWeight: '700', 
+            color: 'var(--teal-accent)', 
+            fontWeight: '800', 
             pb: 2, 
             fontFamily: '"Inter", sans-serif',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
           }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              Registered Face Images
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Face /> Registered Biometric Face Templates
             </Box>
-            <IconButton
-              onClick={() => setViewFacesDialogOpen(false)}
-              sx={{ color: '#6b7280' }}
-            >
+            <IconButton onClick={() => setViewFacesDialogOpen(false)} sx={{ color: 'var(--text-secondary)' }}>
               <CloseIcon />
             </IconButton>
           </DialogTitle>
           <DialogContent sx={{ px: 3, pb: 3 }}>
             {loadingFaces ? (
-              <Box 
-                display="flex" 
-                flexDirection="column"
-                justifyContent="center" 
-                alignItems="center" 
-                minHeight="300px"
-                gap={2}
-              >
-                <CircularProgress size={40} sx={{ color: '#f97316' }} />
-                <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                  Loading your registered faces...
-                </Typography>
-              </Box>
-            ) : error ? (
-              <Box 
-                display="flex" 
-                flexDirection="column"
-                justifyContent="center" 
-                alignItems="center" 
-                minHeight="200px"
-                gap={2}
-              >
-                <Typography variant="body1" sx={{ color: '#dc2626', textAlign: 'center' }}>
-                  {error}
+              <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="240px" gap={2}>
+                <CircularProgress size={40} sx={{ color: 'var(--teal-accent)' }} />
+                <Typography variant="body2" sx={{ color: 'var(--text-secondary)' }}>
+                  Retrieving biometric templates...
                 </Typography>
               </Box>
             ) : registeredFaces ? (
               <Box>
-                {/* Summary */}
                 <Paper
                   elevation={0}
                   sx={{
                     p: 2,
                     mb: 3,
-                    background: '#f0fdf4',
-                    border: '1px solid #dcfce7',
+                    background: 'var(--card-inner)',
+                    border: '1px solid var(--teal-border)',
                     borderRadius: '12px',
                   }}
                 >
                   <Stack direction="row" spacing={3} alignItems="center">
                     <Box>
-                      <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
-                        Total Faces
+                      <Typography variant="caption" fontWeight="700" sx={{ color: 'var(--text-secondary)' }}>
+                        TOTAL REGISTERED IMAGES
                       </Typography>
-                      <Typography variant="h6" sx={{ color: '#16a34a', fontWeight: '700' }}>
-                        {registeredFaces.total_faces}
+                      <Typography variant="h6" sx={{ color: 'var(--teal-accent)', fontWeight: '800' }}>
+                        {registeredFaces.total_faces || (registeredFaces.faces ? registeredFaces.faces.length : 0)}
                       </Typography>
                     </Box>
-                    <Box sx={{ width: '1px', height: '40px', background: '#dcfce7' }} />
+                    <Box sx={{ width: '1px', height: '40px', background: 'var(--table-border)' }} />
                     <Box>
-                      <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
-                        User ID
+                      <Typography variant="caption" fontWeight="700" sx={{ color: 'var(--text-secondary)' }}>
+                        STUDENT USER ID
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#212E46', fontWeight: '600', fontFamily: 'monospace' }}>
-                        {registeredFaces.user_id}
+                      <Typography variant="body1" sx={{ color: 'var(--text-primary)', fontWeight: '700', fontFamily: 'monospace' }}>
+                        {registeredFaces.user_id || user?.unique_id}
                       </Typography>
                     </Box>
                   </Stack>
                 </Paper>
 
-                {/* Face Images Grid */}
+                {/* Face Grid */}
                 <Grid container spacing={2}>
                   {registeredFaces?.faces && Array.isArray(registeredFaces.faces) && registeredFaces.faces.map((face, index) => (
                     <Grid item xs={12} sm={6} md={4} key={index}>
                       <Card
                         elevation={0}
                         sx={{
-                          border: '1px solid #e5e7eb',
+                          border: '1px solid var(--teal-border)',
                           borderRadius: '12px',
                           overflow: 'hidden',
-                          transition: 'all 0.2s ease',
-                          '&:hover': {
-                            boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
-                            transform: 'translateY(-2px)',
-                          },
+                          background: 'var(--card-inner)',
                         }}
                       >
-                        {/* Image */}
                         <CardMedia
                           component="img"
                           image={face.image_data}
                           alt={face.filename}
-                          sx={{
-                            width: '100%',
-                            height: 200,
-                            objectFit: 'cover',
-                            background: '#f9fafb',
-                          }}
+                          sx={{ width: '100%', height: 180, objectFit: 'cover' }}
                         />
-                        
-                        {/* Info */}
-                        <Box sx={{ p: 2 }}>
-                          <Typography 
-                            variant="caption" 
-                            sx={{ 
-                              color: '#6b7280', 
-                              fontWeight: '600',
-                              display: 'block',
-                              mb: 1,
-                            }}
-                          >
+                        <Box sx={{ p: 1.5 }}>
+                          <Typography variant="caption" fontWeight="700" sx={{ color: 'var(--text-primary)', display: 'block', mb: 0.5 }}>
                             {face.filename}
                           </Typography>
-                          
-                          {/* Quality Score */}
-                          {face.quality_score !== null && face.quality_score !== undefined && (
-                            <Box sx={{ mb: 1 }}>
-                              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                                <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 500 }}>
-                                  Quality Score:
-                                </Typography>
-                                <Chip
-                                  label={`${Math.round(face.quality_score)}%`}
-                                  size="small"
-                                  sx={{
-                                    height: '20px',
-                                    fontSize: '0.7rem',
-                                    fontWeight: '600',
-                                    background: face.quality_score >= 70 ? '#dcfce7' : face.quality_score >= 50 ? '#fef3c7' : '#fecaca',
-                                    color: face.quality_score >= 70 ? '#16a34a' : face.quality_score >= 50 ? '#d97706' : '#dc2626',
-                                  }}
-                                />
-                              </Stack>
-                              
-                              {/* Quality Details */}
-                              {face.quality_details && (
-                                <Box sx={{ mt: 1 }}>
-                                  {Object.entries(face.quality_details)
-                                    .filter(([key, value]) => key !== 'accepted' && value !== null && value !== undefined)
-                                    .map(([key, value]) => {
-                                      const labelMap = {
-                                        'face_size_score': 'Size',
-                                        'brightness_score': 'Brightness',
-                                        'sharpness_score': 'Sharpness',
-                                        'pose_score': 'Pose',
-                                        'eye_visibility_score': 'Eyes',
-                                      };
-                                      return (
-                                        <Box 
-                                          key={key} 
-                                          sx={{ 
-                                            display: 'flex', 
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            py: 0.3,
-                                          }}
-                                        >
-                                          <Typography variant="caption" sx={{ color: '#6b7280', fontSize: '0.65rem' }}>
-                                            {labelMap[key] || key}
-                                          </Typography>
-                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                            <Box
-                                              sx={{
-                                                width: '6px',
-                                                height: '6px',
-                                                borderRadius: '50%',
-                                                background: value >= 70 ? '#16a34a' : value >= 50 ? '#d97706' : '#dc2626',
-                                              }}
-                                            />
-                                            <Typography variant="caption" sx={{ color: '#1f2937', fontSize: '0.65rem', fontWeight: '500' }}>
-                                              {Math.round(value)}%
-                                            </Typography>
-                                          </Box>
-                                        </Box>
-                                      );
-                                    })}
-                                </Box>
-                              )}
-                            </Box>
-                          )}
-                          
-                          {/* Registered Date */}
-                          <Typography 
-                            variant="caption" 
-                            sx={{ 
-                              color: '#9ca3af',
-                              fontSize: '0.65rem',
-                              display: 'block',
-                              mt: 1,
-                            }}
-                          >
+                          <Typography variant="caption" sx={{ color: 'var(--text-secondary)', display: 'block' }}>
                             {new Date(face.created_at).toLocaleDateString()}
                           </Typography>
                         </Box>
@@ -994,22 +782,6 @@ const UserProfile = () => {
                     </Grid>
                   ))}
                 </Grid>
-
-                {/* No faces message */}
-                {registeredFaces?.faces && registeredFaces.faces.length === 0 && (
-                  <Box 
-                    display="flex" 
-                    flexDirection="column"
-                    justifyContent="center" 
-                    alignItems="center" 
-                    minHeight="200px"
-                    gap={2}
-                  >
-                    <Typography variant="body1" sx={{ color: '#6b7280', textAlign: 'center' }}>
-                      No face images found
-                    </Typography>
-                  </Box>
-                )}
               </Box>
             ) : null}
           </DialogContent>
@@ -1017,17 +789,7 @@ const UserProfile = () => {
             <Button 
               onClick={() => setViewFacesDialogOpen(false)}
               variant="outlined"
-              sx={{
-                borderRadius: '8px',
-                border: '1px solid #e5e7eb',
-                color: '#6b7280',
-                textTransform: 'none',
-                fontWeight: '600',
-                '&:hover': {
-                  border: '1px solid #d1d5db',
-                  background: '#f9fafb',
-                },
-              }}
+              sx={{ borderRadius: '10px', border: '1px solid var(--table-border)', color: 'var(--text-secondary)' }}
             >
               Close
             </Button>

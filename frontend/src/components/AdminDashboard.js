@@ -45,6 +45,7 @@ import {
   Tag as TagIcon,
   VerifiedUser,
   Add as AddIcon,
+  Edit as EditIcon,
   Delete as DeleteIcon,
   Visibility as VisibilityIcon,
   Search as SearchIcon,
@@ -166,9 +167,40 @@ const AdminDashboard = () => {
   });
   const [addStudentSubmitting, setAddStudentSubmitting] = useState(false);
 
+  // Edit Student Dialog State
+  const [editStudentOpen, setEditStudentOpen] = useState(false);
+  const [editStudentData, setEditStudentData] = useState({
+    id: null,
+    full_name: '',
+    usn: '',
+    email: '',
+    branch: 'CSE',
+    year: 4,
+    semester: 7,
+    section: 'A',
+  });
+  const [editStudentSubmitting, setEditStudentSubmitting] = useState(false);
+
   // Delete Student Dialog State
   const [deleteDialog, setDeleteDialog] = useState({ open: false, student: null });
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
+  const formatYearOrdinal = (year) => {
+    const y = Number(year);
+    if (y === 1) return '1st';
+    if (y === 2) return '2nd';
+    if (y === 3) return '3rd';
+    if (y === 4) return '4th';
+    return `${y || 1}th`;
+  };
+
+  const formatSemOrdinal = (sem) => {
+    const s = Number(sem);
+    if (s === 1) return '1st';
+    if (s === 2) return '2nd';
+    if (s === 3) return '3rd';
+    return `${s || 1}th`;
+  };
 
   // Student Profile Drawer / Modal (4 Tabs) State
   const [profileModalOpen, setProfileModalOpen] = useState(false);
@@ -225,8 +257,8 @@ const AdminDashboard = () => {
       usn: '',
       email: '',
       branch: branchFilter !== 'ALL' ? branchFilter : 'CSE',
-      year: yearFilter !== 'ALL' ? Number(yearFilter) : 3,
-      semester: semesterFilter !== 'ALL' ? Number(semesterFilter) : 6,
+      year: yearFilter !== 'ALL' ? Number(yearFilter) : 4,
+      semester: semesterFilter !== 'ALL' ? Number(semesterFilter) : 7,
       section: sectionFilter !== 'ALL' ? sectionFilter : 'A',
     });
     setAddStudentOpen(true);
@@ -249,6 +281,48 @@ const AdminDashboard = () => {
       showAlert(err.response?.data?.detail || 'Failed to create student', 'error');
     } finally {
       setAddStudentSubmitting(false);
+    }
+  };
+
+  const handleOpenEdit = (student) => {
+    setEditStudentData({
+      id: student.id,
+      full_name: student.full_name || '',
+      usn: student.usn || '',
+      email: student.email || '',
+      branch: student.branch || 'CSE',
+      year: student.year || 4,
+      semester: student.semester || 7,
+      section: student.section || 'A',
+    });
+    setEditStudentOpen(true);
+  };
+
+  const handleUpdateStudent = async (e) => {
+    e.preventDefault();
+    if (!editStudentData.full_name.trim() || !editStudentData.usn.trim() || !editStudentData.email.trim()) {
+      showAlert('Full Name, USN, and Email are required.', 'error');
+      return;
+    }
+    setEditStudentSubmitting(true);
+    try {
+      const res = await adminAPI.updateStudent(editStudentData.id, {
+        full_name: editStudentData.full_name.trim(),
+        usn: editStudentData.usn.trim().toUpperCase(),
+        email: editStudentData.email.trim(),
+        branch: editStudentData.branch,
+        year: Number(editStudentData.year),
+        semester: Number(editStudentData.semester),
+        section: editStudentData.section,
+      });
+      showAlert(res.data?.message || `✓ Student ${editStudentData.full_name} updated successfully!`);
+      setEditStudentOpen(false);
+      await fetchStudents();
+      fetchSecurityData();
+    } catch (err) {
+      showAlert(err.response?.data?.detail || 'Failed to update student', 'error');
+    } finally {
+      setEditStudentSubmitting(false);
     }
   };
 
@@ -459,7 +533,7 @@ const AdminDashboard = () => {
   };
 
   return (
-    <Box sx={{ background: '#070A0F', minHeight: '100vh', color: '#F3F4F6', py: 3, px: 2 }}>
+    <Box sx={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', py: 3, px: 2 }}>
       <Container maxWidth="xl">
         {/* Global Toast Alert */}
         {alertInfo.show && (
@@ -572,14 +646,14 @@ const AdminDashboard = () => {
         {/* ------------------------------------------------------------------- */}
         {/* FINAL ADMIN NAVIGATION (EXACT 4 REQUIRED TABS) */}
         {/* ------------------------------------------------------------------- */}
-        <Paper elevation={0} sx={{ borderRadius: '16px', background: '#0D131F', mb: 4, p: 1, border: '1px solid rgba(0, 224, 198, 0.25)' }}>
+        <Paper elevation={0} sx={{ borderRadius: '16px', background: 'var(--card-solid)', mb: 4, p: 1, border: '1px solid var(--teal-border)' }}>
           <Tabs
             value={activeNav}
             onChange={(e, val) => setActiveNav(val)}
             variant="fullWidth"
             sx={{
               '& .MuiTab-root': {
-                color: '#9CA3AF',
+                color: 'var(--text-secondary)',
                 fontWeight: '800',
                 textTransform: 'none',
                 minHeight: 52,
@@ -587,9 +661,9 @@ const AdminDashboard = () => {
                 fontSize: '0.95rem',
                 fontFamily: '"JetBrains Mono", sans-serif',
                 '&.Mui-selected': {
-                  color: '#070A0F',
-                  background: 'linear-gradient(135deg, #FFB000 0%, #00E0C6 100%)',
-                  boxShadow: '0 4px 20px rgba(255, 176, 0, 0.35)',
+                  color: '#FFFFFF',
+                  background: 'linear-gradient(135deg, var(--amber-accent) 0%, var(--teal-accent) 100%)',
+                  boxShadow: '0 4px 20px var(--amber-border)',
                 },
               },
               '& .MuiTabs-indicator': { display: 'none' },
@@ -1069,10 +1143,10 @@ const AdminDashboard = () => {
                               />
                             </TableCell>
                             <TableCell sx={{ fontFamily: 'monospace', color: '#00E0C6', fontWeight: '800' }}>
-                              {student.year ? `${student.year}rd` : '3rd'}
+                              {formatYearOrdinal(student.year)}
                             </TableCell>
                             <TableCell sx={{ fontFamily: 'monospace', color: '#FFB000', fontWeight: '800' }}>
-                              {student.semester ? `${student.semester}th` : '6th'}
+                              {formatSemOrdinal(student.semester)}
                             </TableCell>
                             <TableCell sx={{ fontFamily: 'monospace', color: '#00E0C6', fontWeight: '800' }}>
                               {student.section || 'A'}
@@ -1154,7 +1228,21 @@ const AdminDashboard = () => {
                                 </Button>
                                 <IconButton
                                   size="small"
+                                  onClick={() => handleOpenEdit(student)}
+                                  title="Edit Student Information"
+                                  sx={{
+                                    color: '#FFB000',
+                                    border: '1px solid rgba(255, 176, 0, 0.3)',
+                                    borderRadius: '8px',
+                                    '&:hover': { background: 'rgba(255, 176, 0, 0.15)', borderColor: '#FFB000' },
+                                  }}
+                                >
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
                                   onClick={() => handleOpenDelete(student)}
+                                  title="Delete Student Record"
                                   sx={{
                                     color: '#EF4444',
                                     border: '1px solid rgba(239, 68, 68, 0.3)',
@@ -1805,6 +1893,227 @@ const AdminDashboard = () => {
         </Dialog>
 
         {/* ------------------------------------------------------------------- */}
+        {/* EDIT STUDENT DIALOG */}
+        {/* ------------------------------------------------------------------- */}
+        <Dialog
+          open={editStudentOpen}
+          onClose={() => setEditStudentOpen(false)}
+          maxWidth="sm"
+          fullWidth
+          PaperProps={{
+            sx: {
+              background: '#0D131F',
+              border: '1px solid rgba(255, 176, 0, 0.4)',
+              borderRadius: '20px',
+              color: '#F3F4F6',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.8), 0 0 30px rgba(255, 176, 0, 0.2)',
+            },
+          }}
+        >
+          <form onSubmit={handleUpdateStudent}>
+            <DialogTitle sx={{ color: '#FFB000', fontWeight: '900', fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: 1 }}>
+              ✏️ EDIT STUDENT INFORMATION
+            </DialogTitle>
+            <DialogContent>
+              <Alert
+                severity="info"
+                sx={{
+                  mb: 3,
+                  background: 'rgba(0, 224, 198, 0.1)',
+                  border: '1px solid rgba(0, 224, 198, 0.3)',
+                  color: '#00E0C6',
+                  borderRadius: '10px',
+                  '& .MuiAlert-icon': { color: '#00E0C6' },
+                }}
+              >
+                <Typography variant="body2" sx={{ fontWeight: '700' }}>
+                  <strong>Student Profile & Academic Sync:</strong> Updates USN, Year, Semester, Section, and Name.
+                  If the student has a registered login account, user credentials and identifiers update in sync.
+                </Typography>
+              </Alert>
+
+              <Stack spacing={2.5}>
+                <TextField
+                  fullWidth
+                  label="Full Name"
+                  required
+                  placeholder="e.g. Milanraj"
+                  value={editStudentData.full_name}
+                  onChange={(e) => setEditStudentData({ ...editStudentData, full_name: e.target.value })}
+                  sx={{
+                    background: '#070A0F',
+                    borderRadius: '10px',
+                    '& .MuiOutlinedInput-root': {
+                      color: '#F3F4F6',
+                      '& fieldset': { borderColor: 'rgba(255, 176, 0, 0.3)' },
+                      '&:hover fieldset': { borderColor: '#FFB000' },
+                      '&.Mui-focused fieldset': { borderColor: '#00E0C6' },
+                    },
+                    '& .MuiInputLabel-root': { color: '#9CA3AF' },
+                  }}
+                />
+
+                <TextField
+                  fullWidth
+                  label="USN (University Seat Number)"
+                  required
+                  placeholder="e.g. 4SO23CS001"
+                  value={editStudentData.usn}
+                  onChange={(e) => setEditStudentData({ ...editStudentData, usn: e.target.value.toUpperCase() })}
+                  inputProps={{ style: { textTransform: 'uppercase', fontFamily: 'monospace', fontWeight: '700' } }}
+                  sx={{
+                    background: '#070A0F',
+                    borderRadius: '10px',
+                    '& .MuiOutlinedInput-root': {
+                      color: '#F3F4F6',
+                      '& fieldset': { borderColor: 'rgba(255, 176, 0, 0.3)' },
+                      '&:hover fieldset': { borderColor: '#FFB000' },
+                      '&.Mui-focused fieldset': { borderColor: '#00E0C6' },
+                    },
+                    '& .MuiInputLabel-root': { color: '#9CA3AF' },
+                  }}
+                />
+
+                <TextField
+                  fullWidth
+                  type="email"
+                  label="Student Email Address"
+                  required
+                  placeholder="e.g. milan@gmail.com"
+                  value={editStudentData.email}
+                  onChange={(e) => setEditStudentData({ ...editStudentData, email: e.target.value })}
+                  sx={{
+                    background: '#070A0F',
+                    borderRadius: '10px',
+                    '& .MuiOutlinedInput-root': {
+                      color: '#F3F4F6',
+                      '& fieldset': { borderColor: 'rgba(255, 176, 0, 0.3)' },
+                      '&:hover fieldset': { borderColor: '#FFB000' },
+                      '&.Mui-focused fieldset': { borderColor: '#00E0C6' },
+                    },
+                    '& .MuiInputLabel-root': { color: '#9CA3AF' },
+                  }}
+                />
+
+                {/* Academic Group Dropdowns */}
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" sx={{ color: '#FFB000', fontWeight: '800', mb: 0.5, display: 'block' }}>
+                      BRANCH
+                    </Typography>
+                    <FormControl fullWidth size="small">
+                      <Select
+                        value={editStudentData.branch}
+                        onChange={(e) => setEditStudentData({ ...editStudentData, branch: e.target.value })}
+                        sx={{
+                          background: '#070A0F',
+                          color: '#F3F4F6',
+                          borderRadius: '10px',
+                          border: '1px solid rgba(255, 176, 0, 0.3)',
+                          '& .MuiSvgIcon-root': { color: '#FFB000' },
+                        }}
+                      >
+                        {academicOptions?.branches?.map((b) => (
+                          <MenuItem key={b} value={b}>{b}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  <Grid item xs={6}>
+                    <Typography variant="caption" sx={{ color: '#00E0C6', fontWeight: '800', mb: 0.5, display: 'block' }}>
+                      YEAR
+                    </Typography>
+                    <FormControl fullWidth size="small">
+                      <Select
+                        value={editStudentData.year}
+                        onChange={(e) => setEditStudentData({ ...editStudentData, year: Number(e.target.value) })}
+                        sx={{
+                          background: '#070A0F',
+                          color: '#F3F4F6',
+                          borderRadius: '10px',
+                          border: '1px solid rgba(0, 224, 198, 0.3)',
+                          '& .MuiSvgIcon-root': { color: '#00E0C6' },
+                        }}
+                      >
+                        {academicOptions?.years?.map((y) => (
+                          <MenuItem key={y.value} value={y.value}>{y.label}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  <Grid item xs={6}>
+                    <Typography variant="caption" sx={{ color: '#FFB000', fontWeight: '800', mb: 0.5, display: 'block' }}>
+                      SEMESTER
+                    </Typography>
+                    <FormControl fullWidth size="small">
+                      <Select
+                        value={editStudentData.semester}
+                        onChange={(e) => setEditStudentData({ ...editStudentData, semester: Number(e.target.value) })}
+                        sx={{
+                          background: '#070A0F',
+                          color: '#F3F4F6',
+                          borderRadius: '10px',
+                          border: '1px solid rgba(255, 176, 0, 0.3)',
+                          '& .MuiSvgIcon-root': { color: '#FFB000' },
+                        }}
+                      >
+                        {academicOptions?.semesters?.map((s) => (
+                          <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  <Grid item xs={6}>
+                    <Typography variant="caption" sx={{ color: '#00E0C6', fontWeight: '800', mb: 0.5, display: 'block' }}>
+                      SECTION
+                    </Typography>
+                    <FormControl fullWidth size="small">
+                      <Select
+                        value={editStudentData.section}
+                        onChange={(e) => setEditStudentData({ ...editStudentData, section: e.target.value })}
+                        sx={{
+                          background: '#070A0F',
+                          color: '#F3F4F6',
+                          borderRadius: '10px',
+                          border: '1px solid rgba(0, 224, 198, 0.3)',
+                          '& .MuiSvgIcon-root': { color: '#00E0C6' },
+                        }}
+                      >
+                        {academicOptions?.sections?.map((sec) => (
+                          <MenuItem key={sec} value={sec}>Section {sec}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                </Grid>
+              </Stack>
+            </DialogContent>
+            <DialogActions sx={{ p: 3 }}>
+              <Button onClick={() => setEditStudentOpen(false)} sx={{ color: '#9CA3AF' }}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={editStudentSubmitting}
+                sx={{
+                  background: 'linear-gradient(135deg, #00E0C6, #0F766E)',
+                  color: '#070A0F',
+                  fontWeight: '900',
+                  px: 3,
+                  borderRadius: '10px',
+                }}
+              >
+                {editStudentSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </DialogActions>
+          </form>
+        </Dialog>
+
+        {/* ------------------------------------------------------------------- */}
         {/* DELETE CONFIRMATION DIALOG */}
         {/* ------------------------------------------------------------------- */}
         <Dialog
@@ -1948,7 +2257,7 @@ const AdminDashboard = () => {
                       <Paper sx={{ p: 2.5, background: '#070A0F', borderRadius: '12px', border: '1px solid rgba(255,176,0,0.2)' }}>
                         <Typography variant="caption" color="#9CA3AF">Academic Group</Typography>
                         <Typography variant="body1" fontWeight="800" color="#F3F4F6" fontFamily="monospace">
-                          {selectedStudentDetails.profile.branch} • {selectedStudentDetails.profile.year}rd Year • {selectedStudentDetails.profile.semester}th Sem • Sec {selectedStudentDetails.profile.section}
+                          {selectedStudentDetails.profile.branch} • {formatYearOrdinal(selectedStudentDetails.profile.year)} Year • {formatSemOrdinal(selectedStudentDetails.profile.semester)} Sem • Sec {selectedStudentDetails.profile.section}
                         </Typography>
                       </Paper>
                     </Grid>
@@ -2170,7 +2479,7 @@ const AdminDashboard = () => {
                       <Box>
                         <Typography variant="caption" color="#9CA3AF">ACADEMIC GROUP</Typography>
                         <Typography variant="body2" color="#00E0C6" fontWeight="900" fontFamily="monospace">
-                          {selectedStudentDetails.attendance.branch} • {selectedStudentDetails.attendance.year}rd Year • {selectedStudentDetails.attendance.semester}th Sem • Sec {selectedStudentDetails.attendance.section}
+                          {selectedStudentDetails.attendance.branch} • {formatYearOrdinal(selectedStudentDetails.attendance.year)} Year • {formatSemOrdinal(selectedStudentDetails.attendance.semester)} Sem • Sec {selectedStudentDetails.attendance.section}
                         </Typography>
                       </Box>
 

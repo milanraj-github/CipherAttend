@@ -82,9 +82,9 @@ const Login = () => {
   const inputStyles = {
     '& .MuiOutlinedInput-root': {
       borderRadius: '12px',
-      background: 'rgba(7, 10, 15, 0.7)',
-      border: '1px solid rgba(0, 224, 198, 0.3)',
-      color: '#F3F4F6',
+      background: 'var(--card-inner)',
+      border: '1px solid var(--teal-border)',
+      color: 'var(--text-primary)',
       fontFamily: '"Inter", sans-serif',
       fontSize: '0.9rem',
       '& fieldset': {
@@ -92,20 +92,18 @@ const Login = () => {
       },
       '& input': {
         py: 1.5,
-        color: '#F3F4F6',
+        color: 'var(--text-primary)',
         '&::placeholder': {
-          color: '#64748b',
-          opacity: 1,
+          color: 'var(--text-secondary)',
+          opacity: 0.8,
         },
       },
       '&:hover': {
-        background: 'rgba(7, 10, 15, 0.9)',
-        border: '1px solid rgba(255, 176, 0, 0.4)',
+        border: '1px solid var(--amber-border)',
       },
       '&.Mui-focused': {
-        background: '#070A0F',
-        boxShadow: '0 0 15px rgba(0, 224, 198, 0.3)',
-        border: '1px solid #00E0C6',
+        boxShadow: '0 0 15px var(--teal-border)',
+        border: '1px solid var(--teal-accent)',
       },
     },
   };
@@ -114,13 +112,13 @@ const Login = () => {
     <Box
       sx={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #070A0F 0%, #0D131F 50%, #0A0E17 100%)',
+        background: 'var(--bg-gradient)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         py: 6,
         px: 2,
-        color: '#F3F4F6',
+        color: 'var(--text-primary)',
       }}
     >
       <Container maxWidth="xs">
@@ -132,10 +130,10 @@ const Login = () => {
           sx={{
             p: { xs: 3.5, sm: 4.5 },
             borderRadius: '24px',
-            background: 'rgba(13, 19, 31, 0.9)',
+            background: 'var(--card-bg)',
             backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(0, 224, 198, 0.3)',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 25px rgba(255, 176, 0, 0.15)',
+            border: '1px solid var(--teal-border)',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 25px var(--amber-border)',
           }}
         >
           {/* Header Icon */}
@@ -146,15 +144,15 @@ const Login = () => {
               mx: 'auto',
               mb: 2.5,
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, rgba(255, 176, 0, 0.2) 0%, rgba(0, 224, 198, 0.25) 100%)',
-              border: '2px solid #FFB000',
+              background: 'linear-gradient(135deg, var(--amber-border) 0%, var(--teal-border) 100%)',
+              border: '2px solid var(--amber-accent)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 0 25px rgba(255, 176, 0, 0.3)',
+              boxShadow: '0 0 25px var(--amber-border)',
             }}
           >
-            <Lock sx={{ fontSize: 32, color: '#FFB000' }} />
+            <Lock sx={{ fontSize: 32, color: 'var(--amber-accent)' }} />
           </Box>
 
           {/* Header */}
@@ -164,7 +162,7 @@ const Login = () => {
               fontWeight="900"
               gutterBottom
               sx={{
-                color: '#FFB000',
+                color: 'var(--amber-accent)',
                 letterSpacing: '-0.02em',
                 fontFamily: '"JetBrains Mono", "Inter", sans-serif',
                 fontSize: { xs: '1.5rem', sm: '1.75rem' },
@@ -177,7 +175,7 @@ const Login = () => {
             <Typography
               variant="body2"
               sx={{
-                color: '#9CA3AF',
+                color: 'var(--text-secondary)',
                 fontFamily: '"Inter", sans-serif',
                 fontSize: '0.85rem',
                 fontWeight: 500,

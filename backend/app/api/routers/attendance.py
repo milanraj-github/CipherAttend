@@ -196,6 +196,7 @@ async def mark_attendance(
             .filter(
                 Attendance.user_id == user.id,
                 Attendance.date == today,
+                Attendance.subject_id == subject_id_val,
                 Attendance.period == period_val,
             )
             .first()
@@ -205,12 +206,10 @@ async def mark_attendance(
             if existing_attendance.status == "absent":
                 existing_attendance.status = "present"
                 existing_attendance.time_in = now_local().time()
-                if subject_id_val:
-                    existing_attendance.subject_id = subject_id_val
                 db.commit()
                 db.refresh(existing_attendance)
                 return {
-                    "message": f"Attendance updated for {user.full_name} ({target_subject.code if target_subject else 'BCS703'} Period {period_val}) - status changed from absent to present",
+                    "message": f"Attendance updated for {user.full_name} ({target_subject.code if target_subject else 'BCS703'} Period {period_val}) - status changed to present",
                     "user": UserResponse.model_validate(user),
                     "attendance": AttendanceResponse.model_validate(existing_attendance),
                     "confidence": confidence,
@@ -235,6 +234,7 @@ async def mark_attendance(
                 .filter(
                     Attendance.user_id == user.id,
                     Attendance.date == today,
+                    Attendance.subject_id == subject_id_val,
                     Attendance.period == period_val,
                 )
                 .first()
@@ -265,3 +265,127 @@ async def mark_attendance(
                     os.remove(path)
                 except OSError:
                     pass
+
+
+@router.post("/mark-upload")
+@router.post("/mark-photo")
+@limiter.limit(settings.RATE_LIMIT_ATTENDANCE)
+async def mark_attendance_upload(
+    request: Request,
+    file: Optional[UploadFile] = File(None),
+    files: List[UploadFile] = File(None),
+    subject_code: Optional[str] = Form(None),
+    period: Optional[int] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
+    """Mark attendance directly by uploading image file(s) instead of live camera capture."""
+    temp_paths: List[str] = []
+    try:
+        uploads = [f for f in ([file] + (files or [])) if f is not None]
+        if not uploads:
+            raise HTTPException(status_code=422, detail="No image file provided. Please select an image.")
+
+        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+        for i, upload in enumerate(uploads):
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
+            path = os.path.join(settings.UPLOAD_DIR, f"upload_mark_{timestamp}_{i}.jpg")
+            with open(path, "wb") as buffer:
+                buffer.write(await upload.read())
+            temp_paths.append(path)
+
+        # Recognize face from uploaded image
+        recognition = None
+        if len(temp_paths) > 1:
+            recognition = face_service.recognize_frames(temp_paths, db)
+        else:
+            recognition = face_service.recognize(temp_paths[0], db)
+
+        if not recognition:
+            raise HTTPException(
+                status_code=404,
+                detail="Face not recognized in the uploaded image. Please ensure the face is clear, well-lit, and that you are registered.",
+            )
+
+        confidence = recognition["confidence"]
+        recognized_user_id = recognition["user_id"]
+
+        if current_user is not None and recognized_user_id != current_user.unique_id:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Uploaded photo belongs to user {recognized_user_id}, but you are logged in as {current_user.full_name} ({current_user.unique_id}).",
+            )
+
+        user = db.query(User).filter(User.unique_id == recognized_user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Student not found in database.")
+
+        today = today_local()
+        from app.models import Subject
+        target_subject = None
+        if subject_code:
+            target_subject = db.query(Subject).filter(Subject.code == subject_code).first()
+        if not target_subject:
+            target_subject = db.query(Subject).filter(Subject.code == "BCS703").first()
+        if not target_subject:
+            target_subject = db.query(Subject).first()
+
+        period_val = int(period) if period is not None else 1
+        subject_id_val = target_subject.id if target_subject else None
+
+        existing_attendance = (
+            db.query(Attendance)
+            .filter(
+                Attendance.user_id == user.id,
+                Attendance.date == today,
+                Attendance.subject_id == subject_id_val,
+                Attendance.period == period_val,
+            )
+            .first()
+        )
+
+        if existing_attendance:
+            if existing_attendance.status == "absent":
+                existing_attendance.status = "present"
+                existing_attendance.time_in = now_local().time()
+                db.commit()
+                db.refresh(existing_attendance)
+                return {
+                    "message": f"Attendance updated for {user.full_name} ({target_subject.code if target_subject else 'BCS703'} Period {period_val}) - status changed to present",
+                    "user": UserResponse.model_validate(user),
+                    "attendance": AttendanceResponse.model_validate(existing_attendance),
+                    "confidence": confidence,
+                }
+            raise _already_marked(user, existing_attendance)
+
+        attendance = Attendance(
+            user_id=user.id,
+            subject_id=subject_id_val,
+            period=period_val,
+            date=today,
+            time_in=now_local().time(),
+            status="present",
+        )
+        db.add(attendance)
+        db.commit()
+        db.refresh(attendance)
+
+        return {
+            "message": f"Attendance marked successfully via uploaded image for {user.full_name}",
+            "user": UserResponse.model_validate(user),
+            "attendance": AttendanceResponse.model_validate(attendance),
+            "confidence": confidence,
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Upload attendance marking failed")
+        raise HTTPException(status_code=500, detail="Failed to process uploaded image. Please try again.")
+    finally:
+        for path in temp_paths:
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+
