@@ -24,8 +24,6 @@ import {
   PhotoCamera,
   VerifiedUser,
   Lock,
-  DeleteOutline,
-  CheckCircle,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
@@ -339,6 +337,7 @@ const FaceCapture = () => {
                       variant="contained"
                       size="large"
                       onClick={startCapturing}
+                      disabled={isCapturing}
                       sx={{
                         py: 1.8,
                         px: 4,

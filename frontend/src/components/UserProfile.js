@@ -29,10 +29,7 @@ import {
   Edit,
   Save,
   Cancel,
-  CheckCircle,
   Face,
-  School,
-  Badge,
 } from '@mui/icons-material';
 import { userAPI } from '../services/api';
 

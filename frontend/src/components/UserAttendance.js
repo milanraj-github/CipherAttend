@@ -18,7 +18,6 @@ import {
   Alert,
   CircularProgress,
   LinearProgress,
-  Paper,
 } from '@mui/material';
 import {
   EventAvailable,

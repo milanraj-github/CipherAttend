@@ -28,7 +28,6 @@ import {
   ErrorRounded,
   CloudUpload,
   PhotoCamera,
-  Image as ImageIcon,
   DeleteOutline,
   Verified,
   Lock,

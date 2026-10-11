@@ -3,7 +3,6 @@ import {
   Box,
   Typography,
   Stack,
-  Divider,
 } from '@mui/material';
 import {
   Person,
