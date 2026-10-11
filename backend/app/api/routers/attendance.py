@@ -135,8 +135,8 @@ async def mark_attendance(
             except LivenessError as e:
                 logger.warning(f"Liveness challenge failed: {e}")
                 raise HTTPException(status_code=403, detail=str(e))
-            # Prefer the most frontal frames for matching (top 2 frames for speed).
-            recognition_paths = result["frontal_paths"][:2] or temp_paths[:2]
+            # Prefer the most frontal frames for matching.
+            recognition_paths = result["frontal_paths"][:3] or temp_paths
 
         recognition = face_service.recognize_frames(recognition_paths, db)
         if not recognition:

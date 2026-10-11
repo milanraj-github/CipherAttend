@@ -92,8 +92,8 @@ const MarkAttendance = () => {
   const STABILITY_MS = 700;
   const RESULT_DISPLAY_MS = 4000;
   const ERROR_RETRY_MS = 3000;
-  const BURST_FRAMES = 6;
-  const BURST_INTERVAL_MS = 120;
+  const BURST_FRAMES = 12;
+  const BURST_INTERVAL_MS = 200;
 
   const isCapturingRef = useRef(false);
   const stabilityTimerRef = useRef(null);
