@@ -26,15 +26,27 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor for handling errors
+// Response interceptor for handling errors and automatic cold-start retries
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const config = error.config;
+    // Auto-retry transient cold-start / gateway errors once for GET requests
+    const isGet = (config?.method || 'get').toLowerCase() === 'get';
+    const isColdStartError =
+      !error.response || [502, 503, 504].includes(error.response?.status);
+
+    if (config && !config._retry && isGet && isColdStartError) {
+      config._retry = true;
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      return api(config);
+    }
+
     // Only force a logout/redirect when a 401 comes from an authenticated
     // request (i.e. an expired/invalid session). A 401 from the login or
     // register call is a failed attempt and must surface to the form so it
     // can show "Invalid email or password" instead of silently reloading.
-    const requestUrl = error.config?.url || '';
+    const requestUrl = config?.url || '';
     const isAuthAttempt =
       requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
 

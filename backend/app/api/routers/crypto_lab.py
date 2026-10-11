@@ -30,7 +30,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy import desc, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.api import deps
 from app.core.config import settings
@@ -119,15 +119,14 @@ async def get_cryptography_overview(
     Overview summary metrics of real registered users, enrolled templates,
     encrypted records, integrity digests, and recent operations.
     """
-    registered_users_count = db.query(User).count()
-    enrolled_templates_count = db.query(FaceEmbedding).count()
-    total_images_stored = db.query(FaceImage).count()
-    total_attendance_count = db.query(Attendance).count()
-
-    # Recent operations in last 7 days
     seven_days_ago = datetime.utcnow() - timedelta(days=7)
-    recent_registrations_count = db.query(User).filter(User.created_at >= seven_days_ago).count()
-    recent_authentications_count = db.query(Attendance).filter(Attendance.created_at >= seven_days_ago).count()
+
+    registered_users_count = db.query(func.count(User.id)).scalar() or 0
+    enrolled_templates_count = db.query(func.count(FaceEmbedding.id)).scalar() or 0
+    total_images_stored = db.query(func.count(FaceImage.id)).scalar() or 0
+    total_attendance_count = db.query(func.count(Attendance.id)).scalar() or 0
+    recent_registrations_count = db.query(func.count(User.id)).filter(User.created_at >= seven_days_ago).scalar() or 0
+    recent_authentications_count = db.query(func.count(Attendance.id)).filter(Attendance.created_at >= seven_days_ago).scalar() or 0
 
     return {
         "registered_users": registered_users_count,
@@ -158,13 +157,20 @@ async def get_cryptography_users_list(
     """
     List of registered users with real biometric enrollment status,
     image availability, and creation dates.
+    Uses batch queries to prevent round-trip database latency.
     """
     users = db.query(User).order_by(User.id).all()
+    embeddings = {fe.user_id: fe for fe in db.query(FaceEmbedding).all()}
+    image_counts = dict(
+        db.query(FaceImage.user_id, func.count(FaceImage.id)).group_by(FaceImage.user_id).all()
+    )
+    students_by_user = {s.user_id: s for s in db.query(Student).filter(Student.user_id != None).all()}
+
     result = []
     for u in users:
-        fe = db.query(FaceEmbedding).filter(FaceEmbedding.user_id == u.id).first()
-        img_count = db.query(FaceImage).filter(FaceImage.user_id == u.id).count()
-        student = db.query(Student).filter(Student.user_id == u.id).first()
+        fe = embeddings.get(u.id)
+        img_count = int(image_counts.get(u.id, 0))
+        student = students_by_user.get(u.id)
 
         result.append({
             "id": u.id,
@@ -203,7 +209,19 @@ async def get_user_cryptography_details(
 
     student = db.query(Student).filter(Student.user_id == user.id).first()
     fe = db.query(FaceEmbedding).filter(FaceEmbedding.user_id == user.id).first()
-    face_images = db.query(FaceImage).filter(FaceImage.user_id == user.id).order_by(FaceImage.position).all()
+    face_images = (
+        db.query(
+            FaceImage.id,
+            FaceImage.position,
+            FaceImage.quality_score,
+            func.length(FaceImage.image_data).label("byte_size"),
+            FaceImage.content_type,
+            FaceImage.created_at,
+        )
+        .filter(FaceImage.user_id == user.id)
+        .order_by(FaceImage.position)
+        .all()
+    )
     recent_attendance = db.query(Attendance).filter(Attendance.user_id == user.id).order_by(desc(Attendance.id)).limit(10).all()
 
     # Password security analysis (masked, safe)
@@ -227,7 +245,7 @@ async def get_user_cryptography_details(
             "id": img.id,
             "position": img.position,
             "quality_score": round(img.quality_score, 2) if img.quality_score is not None else None,
-            "byte_size": len(img.image_data) if img.image_data else 0,
+            "byte_size": int(img.byte_size or 0),
             "content_type": img.content_type or "image/jpeg",
             "created_at": img.created_at.isoformat() if img.created_at else None,
             "preview_url": f"/admin/cryptography/users/{user.id}/image/{img.id}",
@@ -424,6 +442,7 @@ async def get_cryptography_operations_timeline(
     - Attendance / biometric authentications (Attendance.created_at)
     """
     events = []
+    users_by_id = {u.id: u for u in db.query(User).all()}
 
     # 1. User Registrations
     users = db.query(User).order_by(desc(User.created_at)).limit(limit).all()
@@ -449,7 +468,7 @@ async def get_cryptography_operations_timeline(
     # 2. Biometric Enrollments
     embeddings = db.query(FaceEmbedding).order_by(desc(FaceEmbedding.created_at)).limit(limit).all()
     for fe in embeddings:
-        u = db.query(User).filter(User.id == fe.user_id).first()
+        u = users_by_id.get(fe.user_id)
         if fe.created_at and u:
             events.append({
                 "operation_id": f"OP-ENR-{fe.id}",
@@ -472,7 +491,7 @@ async def get_cryptography_operations_timeline(
     # 3. Attendance Authentications
     attendances = db.query(Attendance).order_by(desc(Attendance.id)).limit(limit).all()
     for att in attendances:
-        u = db.query(User).filter(User.id == att.user_id).first()
+        u = users_by_id.get(att.user_id)
         t = att.created_at or datetime.utcnow()
         if u:
             events.append({

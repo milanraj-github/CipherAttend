@@ -8,7 +8,7 @@ from typing import Optional, List, Dict
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.api import deps
 from app.core.config import settings
@@ -774,33 +774,41 @@ class AttendanceRecordRequest(BaseModel):
 
 def _sync_existing_users_to_students(db: Session):
     """Ensure any existing student users in users table are present in students table."""
-    users = db.query(User).filter(User.role == "user").all()
-    for u in users:
-        existing = db.query(Student).filter(
-            (Student.user_id == u.id) | (func.lower(Student.email) == u.email.lower())
-        ).first()
-        if not existing:
-            usn_val = u.unique_id
-            if "@" in u.email:
-                prefix = u.email.split("@")[0].upper()
-                if "." in prefix:
-                    parts = prefix.split(".")
-                    usn_val = f"4SO{parts[-1]}" if len(parts[-1]) >= 4 else f"1RV21CS{u.id:03d}"
-                else:
-                    usn_val = f"1RV21CS{u.id:03d}"
-            new_student = Student(
-                full_name=u.full_name,
-                usn=usn_val,
-                email=u.email,
-                branch="CSE",
-                year=3,
-                semester=6,
-                section="A",
-                class_code="BCS703 — Cryptography & Network Security",
-                user_id=u.id,
-            )
-            db.add(new_student)
-    db.commit()
+    existing_user_ids = {s[0] for s in db.query(Student.user_id).filter(Student.user_id != None).all()}
+    existing_emails = {s[0].lower() for s in db.query(Student.email).filter(Student.email != None).all()}
+
+    query = db.query(User).filter(User.role == "user")
+    if existing_user_ids:
+        query = query.filter(~User.id.in_(existing_user_ids))
+    unlinked_users = query.all()
+
+    added = False
+    for u in unlinked_users:
+        if u.email and u.email.lower() in existing_emails:
+            continue
+        usn_val = u.unique_id
+        if "@" in u.email:
+            prefix = u.email.split("@")[0].upper()
+            if "." in prefix:
+                parts = prefix.split(".")
+                usn_val = f"4SO{parts[-1]}" if len(parts[-1]) >= 4 else f"1RV21CS{u.id:03d}"
+            else:
+                usn_val = f"1RV21CS{u.id:03d}"
+        new_student = Student(
+            full_name=u.full_name,
+            usn=usn_val,
+            email=u.email,
+            branch="CSE",
+            year=3,
+            semester=6,
+            section="A",
+            class_code="BCS703 — Cryptography & Network Security",
+            user_id=u.id,
+        )
+        db.add(new_student)
+        added = True
+    if added:
+        db.commit()
 
 
 def _get_student_biometric_crypto_data(student: Student, db: Session):
@@ -946,7 +954,7 @@ async def get_admin_students(
     current_user: User = Depends(deps.get_current_admin_user),
 ):
     _sync_existing_users_to_students(db)
-    query = db.query(Student)
+    query = db.query(Student).options(joinedload(Student.user))
 
     if branch and branch != "ALL":
         query = query.filter(Student.branch == branch)
@@ -965,13 +973,19 @@ async def get_admin_students(
         )
 
     students = query.order_by(Student.id.desc()).all()
+    user_ids = [s.user_id for s in students if s.user_id]
+    embeddings_map = {}
+    if user_ids:
+        for fe in db.query(FaceEmbedding).filter(FaceEmbedding.user_id.in_(user_ids)).all():
+            embeddings_map[fe.user_id] = fe
+
     results = []
     for s in students:
         user = s.user
         is_registered = user is not None
         has_face = False
         if user:
-            fe = db.query(FaceEmbedding).filter(FaceEmbedding.user_id == user.id).first()
+            fe = embeddings_map.get(user.id)
             has_face = fe is not None and user.face_registered
 
         results.append({

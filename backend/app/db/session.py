@@ -9,12 +9,23 @@ from app.db.base import Base
 # SQLite needs check_same_thread=False for FastAPI's threaded request handling.
 connect_args = {"check_same_thread": False} if settings.is_sqlite else {}
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args=connect_args,
-    pool_pre_ping=True,
-    future=True,
-)
+if settings.is_sqlite:
+    engine = create_engine(
+        settings.DATABASE_URL,
+        connect_args=connect_args,
+        pool_pre_ping=True,
+        future=True,
+    )
+else:
+    engine = create_engine(
+        settings.DATABASE_URL,
+        connect_args=connect_args,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20,
+        pool_recycle=300,
+        future=True,
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
