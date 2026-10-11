@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = str(BASE_DIR / "uploads")
 
     # ----- Face recognition -----
-    FACE_MODEL_PACK: str = "buffalo_l"
+    FACE_MODEL_PACK: str = "buffalo_sc"
     FACE_USE_GPU: bool = False
     FACE_MATCH_THRESHOLD: float = 0.42
     FACE_DUPLICATE_THRESHOLD: float = 0.50

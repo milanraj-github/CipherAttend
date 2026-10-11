@@ -165,8 +165,19 @@ def _measure_frames(image_paths: List[str]) -> List[FrameMeasurement]:
         face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
         pose = getattr(face, "pose", None)
         if pose is None:
-            continue
+            kps = getattr(face, "kps", None)
+            if kps is not None and len(kps) >= 3:
+                eye_l, eye_r, nose = kps[0], kps[1], kps[2]
+                dl = abs(nose[0] - eye_l[0])
+                dr = abs(eye_r[0] - nose[0])
+                eye_dist = max(abs(eye_r[0] - eye_l[0]), 1e-4)
+                est_yaw = float(((dl - dr) / eye_dist) * 45.0)
+                pose = [0.0, est_yaw, 0.0]
+            else:
+                continue
         lm = getattr(face, "landmark_2d_106", None)
+        if lm is None:
+            lm = getattr(face, "kps", None)
         x1, y1, x2, y2 = face.bbox
         out.append(FrameMeasurement(
             index=i,

@@ -205,7 +205,7 @@ async def register_face_upload(
                 detail=f"This face is already registered to user: {duplicate_user['full_name']} (ID: {duplicate_user['unique_id']}). Each person can only register once.",
             )
 
-        result = face_service.enroll_user(db, current_user, temp_paths)
+        result = face_service.enroll_user(db, current_user, temp_paths, min_encodings=1)
         stats = result["statistics"]
         return {
             "message": "Face registration successful via uploaded images",

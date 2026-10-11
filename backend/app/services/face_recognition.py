@@ -292,7 +292,7 @@ class FaceRecognitionService:
     # ------------------------------------------------------------------ #
     # Enrollment (writes embeddings + images to the database)
     # ------------------------------------------------------------------ #
-    def enroll_user(self, db, user, image_paths: List[str]) -> Dict:
+    def enroll_user(self, db, user, image_paths: List[str], min_encodings: Optional[int] = None) -> Dict:
         from app.models import FaceEmbedding, FaceImage
 
         logger.info(f"Enrolling {user.unique_id} from {len(image_paths)} images using {self.model_name}")
@@ -312,10 +312,11 @@ class FaceRecognitionService:
             qualities.append(quality["overall_score"])
 
         acceptable = len(embeddings)
-        if acceptable < self.min_required_encodings:
+        required = min_encodings if min_encodings is not None else min(self.min_required_encodings, max(1, len(image_paths)))
+        if acceptable < required:
             raise FaceEnrollmentError(
                 f"Only {acceptable} usable face image(s); need at least "
-                f"{self.min_required_encodings}. Retake with clear, well-lit, front-facing photos."
+                f"{required}. Retake with clear, well-lit, front-facing photos."
             )
 
         arr = np.vstack(embeddings).astype(np.float32)

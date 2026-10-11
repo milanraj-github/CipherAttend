@@ -19,6 +19,10 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Delete Content-Type for FormData so Axios and browser set multipart/form-data with proper boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
     return config;
   },
   (error) => {
@@ -83,11 +87,7 @@ export const faceAPI = {
     if (challengeId) {
       formData.append('challenge_id', challengeId);
     }
-    return api.post('/face/register', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    return api.post('/face/register', formData);
   },
   registerFaceUpload: (files) => {
     const formData = new FormData();
@@ -95,11 +95,7 @@ export const faceAPI = {
     imageList.forEach((file) => {
       formData.append('files', file);
     });
-    return api.post('/face/register-upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    return api.post('/face/register-upload', formData);
   },
 };
 
@@ -114,11 +110,7 @@ export const attendanceAPI = {
     if (challengeId) {
       formData.append('challenge_id', challengeId);
     }
-    return api.post('/attendance/mark', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    return api.post('/attendance/mark', formData);
   },
   markAttendanceUpload: (imageFiles, subjectCode = null, period = null) => {
     const formData = new FormData();
@@ -130,11 +122,7 @@ export const attendanceAPI = {
     if (period !== null && period !== undefined) {
       formData.append('period', period);
     }
-    return api.post('/attendance/mark-upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    return api.post('/attendance/mark-upload', formData);
   },
   getAttendanceRecords: (params = {}) => {
     const queryParams = new URLSearchParams();
@@ -188,11 +176,7 @@ export const adminAPI = {
     if (record.time_in) {
       formData.append('time_in', record.time_in);
     }
-    return api.put(`/admin/attendance/${record.id}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    return api.put(`/admin/attendance/${record.id}`, formData);
   },
   bulkUpdateAttendance: (data) => {
     const formData = new FormData();
@@ -201,22 +185,14 @@ export const adminAPI = {
     if (data.time_in) {
       formData.append('time_in', data.time_in);
     }
-    return api.post('/admin/attendance/bulk-update', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    return api.post('/admin/attendance/bulk-update', formData);
   },
   markUserPresent: (userId, timeIn = null) => {
     const formData = new FormData();
     if (timeIn) {
       formData.append('time_in', timeIn);
     }
-    return api.post(`/admin/attendance/mark-present/${userId}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    return api.post(`/admin/attendance/mark-present/${userId}`, formData);
   },
   exportAttendance: (params) => api.get('/admin/attendance/export', { params }),
   
@@ -228,22 +204,14 @@ export const adminAPI = {
     files.forEach((file) => {
       formData.append('files', file);
     });
-    return api.post(`/admin/user/${userId}/face/register`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    return api.post(`/admin/user/${userId}/face/register`, formData);
   },
   getUserFaceDetails: (userId) => api.get(`/admin/user/${userId}/face/details`),
   getUserFaceImages: (userId) => api.get(`/admin/user/${userId}/face/images`),
   bulkDeleteFaceData: (userIds) => {
     const formData = new FormData();
     userIds.forEach(id => formData.append('user_ids', id));
-    return api.post('/admin/faces/bulk-delete', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    return api.post('/admin/faces/bulk-delete', formData);
   },
 
   // Cryptography Lab & Security Center APIs (VTU BCS703)
