@@ -343,8 +343,12 @@ class FaceRecognitionService:
             dim=int(arr.shape[1]),
             model=self.model_name,
         ))
-        for i, (blob, qs) in enumerate(zip(image_blobs, qualities), start=1):
-            db.add(FaceImage(user_id=user.id, position=i, image_data=blob, quality_score=qs))
+        # Bulk save all face images in one single roundtrip to the database
+        face_images = [
+            FaceImage(user_id=user.id, position=i, image_data=blob, quality_score=qs)
+            for i, (blob, qs) in enumerate(zip(image_blobs, qualities), start=1)
+        ]
+        db.bulk_save_objects(face_images)
 
         user.face_registered = True
         db.commit()
