@@ -181,10 +181,9 @@ async def mark_attendance(
         today = today_local()
         from app.models import Subject
         target_subject = None
-        if subject_code:
-            target_subject = db.query(Subject).filter(Subject.code == subject_code).first()
-        if not target_subject:
-            target_subject = db.query(Subject).filter(Subject.code == "BCS703").first()
+        candidates = [subject_code] if subject_code else []
+        candidates.append("BCS703")
+        target_subject = db.query(Subject).filter(Subject.code.in_(candidates)).first()
         if not target_subject:
             target_subject = db.query(Subject).first()
 
@@ -265,6 +264,7 @@ async def mark_attendance(
                     os.remove(path)
                 except OSError:
                     pass
+        face_service.clear_frame_cache(temp_paths)
 
 
 @router.post("/mark-upload")
@@ -388,4 +388,5 @@ async def mark_attendance_upload(
                     os.remove(path)
                 except OSError:
                     pass
+        face_service.clear_frame_cache(temp_paths)
 

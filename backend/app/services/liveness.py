@@ -151,41 +151,21 @@ class FrameMeasurement:
 
 
 def _measure_frames(image_paths: List[str]) -> List[FrameMeasurement]:
-    """Detect the primary face in each frame and record its pose."""
+    """Detect the primary face in each frame and record its pose (fast detection pass)."""
     from app.services.face_recognition import face_service
 
     out: List[FrameMeasurement] = []
     for i, path in enumerate(image_paths):
-        img = face_service._read_image(path)
-        if img is None:
+        res = face_service.get_or_analyze_frame(path, need_embedding=False)
+        if res is None or res.face is None:
             continue
-        faces = face_service.app.get(img)
-        if not faces:
-            continue
-        face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
-        pose = getattr(face, "pose", None)
-        if pose is None:
-            kps = getattr(face, "kps", None)
-            if kps is not None and len(kps) >= 3:
-                eye_l, eye_r, nose = kps[0], kps[1], kps[2]
-                dl = abs(nose[0] - eye_l[0])
-                dr = abs(eye_r[0] - nose[0])
-                eye_dist = max(abs(eye_r[0] - eye_l[0]), 1e-4)
-                est_yaw = float(((dl - dr) / eye_dist) * 45.0)
-                pose = [0.0, est_yaw, 0.0]
-            else:
-                continue
-        lm = getattr(face, "landmark_2d_106", None)
-        if lm is None:
-            lm = getattr(face, "kps", None)
-        x1, y1, x2, y2 = face.bbox
         out.append(FrameMeasurement(
             index=i,
-            pitch=float(pose[0]),
-            yaw=float(pose[1]),
-            roll=float(pose[2]),
-            landmarks=np.asarray(lm, dtype=np.float32) if lm is not None else None,
-            bbox_area=float((x2 - x1) * (y2 - y1)),
+            pitch=res.pitch,
+            yaw=res.yaw,
+            roll=res.roll,
+            landmarks=res.landmarks,
+            bbox_area=res.bbox_area,
         ))
     return out
 

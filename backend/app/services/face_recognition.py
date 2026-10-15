@@ -11,12 +11,14 @@ user (no averaging) and uses cosine similarity with per-user best-match plus
 k-NN voting and a tuned threshold, returning a real confidence score.
 """
 
+from dataclasses import dataclass
 import hashlib
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import cv2
+from insightface.app.common import Face
 import numpy as np
 from sqlalchemy import func
 
@@ -31,6 +33,19 @@ class FaceEnrollmentError(Exception):
     few usable images). Carries a message intended for display, so routers map
     it to a 400 rather than swallowing it into a generic 500.
     """
+
+
+@dataclass
+class FrameAnalysisResult:
+    img: np.ndarray
+    face: Optional[Any]
+    yaw: float
+    pitch: float
+    roll: float
+    landmarks: Optional[np.ndarray]
+    bbox_area: float
+    quality: Optional[Dict] = None
+    embedding: Optional[np.ndarray] = None
 
 
 class FaceRecognitionService:
@@ -55,6 +70,9 @@ class FaceRecognitionService:
 
         self._app = None  # lazily initialized FaceAnalysis
 
+        # Request-scoped in-memory cache of analysed frames to eliminate redundant ONNX inferences
+        self._frame_cache: Dict[str, FrameAnalysisResult] = {}
+
         # In-memory cache of all embeddings, rebuilt when the DB signature changes.
         self._cache_embeddings = None     # np.ndarray (M, 512) float32
         self._cache_labels: List[str] = []  # user unique_id per row
@@ -71,7 +89,12 @@ class FaceRecognitionService:
                 providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
                 ctx_id = 0
             else:
-                providers = ["CPUExecutionProvider"]
+                providers = [
+                    (
+                        "CPUExecutionProvider",
+                        {"intra_op_num_threads": 2, "inter_op_num_threads": 1},
+                    )
+                ]
                 ctx_id = -1
             logger.info(f"Loading InsightFace model pack '{self.model_name}' (GPU={settings.FACE_USE_GPU})...")
             app = FaceAnalysis(name=self.model_name, providers=providers)
@@ -98,18 +121,106 @@ class FaceRecognitionService:
             return None
         return max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
 
-    def _detect_primary_face(self, image_path: str):
+    def get_cached_image(self, image_path: str) -> Optional[np.ndarray]:
+        cached = self._frame_cache.get(image_path)
+        if cached is not None:
+            return cached.img
+        return None
+
+    def clear_frame_cache(self, image_paths: Optional[List[str]] = None) -> None:
+        if image_paths is None:
+            self._frame_cache.clear()
+        else:
+            for p in image_paths:
+                self._frame_cache.pop(p, None)
+
+    def get_or_analyze_frame(self, image_path: str, need_embedding: bool = True) -> Optional[FrameAnalysisResult]:
+        """
+        Unified single-pass frame analyzer.
+        Caches detection, pose, and embeddings per frame so 12-image bursts are never
+        inferred more than once across liveness, duplicate check, and enrollment/attendance.
+        """
+        cached = self._frame_cache.get(image_path)
+        if cached is not None:
+            if need_embedding and cached.embedding is None and cached.face is not None:
+                try:
+                    self.app.models["recognition"].get(cached.img, cached.face)
+                    if getattr(cached.face, "normed_embedding", None) is not None:
+                        cached.embedding = np.asarray(cached.face.normed_embedding, dtype=np.float32)
+                except Exception as e:
+                    logger.warning(f"Failed to compute embedding for cached face {image_path}: {e}")
+                if cached.quality is None:
+                    cached.quality = self._compute_face_quality(cached.face, cached.img)
+            return cached if cached.face is not None else None
+
         img = self._read_image(image_path)
         if img is None:
+            return None
+
+        # Fast SCRFD face detection pass (skips ArcFace recognition unless requested)
+        bboxes, kpss = self.app.det_model.detect(img, max_num=0, metric="default")
+        if bboxes is None or len(bboxes) == 0:
+            self._frame_cache[image_path] = FrameAnalysisResult(
+                img=img, face=None, yaw=0.0, pitch=0.0, roll=0.0, landmarks=None, bbox_area=0.0
+            )
+            return None
+
+        best_idx = int(np.argmax([(b[2] - b[0]) * (b[3] - b[1]) for b in bboxes]))
+        bbox = bboxes[best_idx, 0:4]
+        det_score = float(bboxes[best_idx, 4])
+        kps = kpss[best_idx] if kpss is not None else None
+        face = Face(bbox=bbox, kps=kps, det_score=det_score)
+
+        # Estimate head pose from 5 facial keypoints
+        pose = [0.0, 0.0, 0.0]
+        if kps is not None and len(kps) >= 3:
+            eye_l, eye_r, nose = kps[0], kps[1], kps[2]
+            dl = abs(nose[0] - eye_l[0])
+            dr = abs(eye_r[0] - nose[0])
+            eye_dist = max(abs(eye_r[0] - eye_l[0]), 1e-4)
+            est_yaw = float(((dl - dr) / eye_dist) * 45.0)
+            pose = [0.0, est_yaw, 0.0]
+
+        x1, y1, x2, y2 = bbox
+        bbox_area = float((x2 - x1) * (y2 - y1))
+        landmarks = np.asarray(kps, dtype=np.float32) if kps is not None else None
+
+        embedding = None
+        quality = None
+        if need_embedding:
+            try:
+                self.app.models["recognition"].get(img, face)
+                if getattr(face, "normed_embedding", None) is not None:
+                    embedding = np.asarray(face.normed_embedding, dtype=np.float32)
+            except Exception as e:
+                logger.warning(f"Failed to compute embedding for {image_path}: {e}")
+            quality = self._compute_face_quality(face, img)
+
+        res = FrameAnalysisResult(
+            img=img,
+            face=face,
+            pitch=float(pose[0]),
+            yaw=float(pose[1]),
+            roll=float(pose[2]),
+            landmarks=landmarks,
+            bbox_area=bbox_area,
+            quality=quality,
+            embedding=embedding,
+        )
+        self._frame_cache[image_path] = res
+        return res
+
+    def _detect_primary_face(self, image_path: str):
+        res = self.get_or_analyze_frame(image_path, need_embedding=True)
+        if res is None or res.face is None:
             return None, None
-        faces = self.app.get(img)
-        return self._largest_face(faces), img
+        return res.face, res.img
 
     def get_embedding(self, image_path: str) -> Optional[np.ndarray]:
-        face, _ = self._detect_primary_face(image_path)
-        if face is None:
+        res = self.get_or_analyze_frame(image_path, need_embedding=True)
+        if res is None or res.embedding is None:
             return None
-        return np.asarray(face.normed_embedding, dtype=np.float32)
+        return res.embedding
 
     # ------------------------------------------------------------------ #
     # Quality
@@ -265,7 +376,9 @@ class FaceRecognitionService:
         # this cheap and removes sensitivity to resolution differences.
         grays = []
         for path in image_paths:
-            img = cv2.imread(path)
+            img = self.get_cached_image(path)
+            if img is None:
+                img = self._read_image(path)
             if img is None:
                 return {
                     "distinct": False,
@@ -303,23 +416,26 @@ class FaceRecognitionService:
 
         embeddings, image_blobs, qualities = [], [], []
         for path in image_paths:
-            img = self._read_image(path)
-            if img is None:
+            res = self.get_or_analyze_frame(path, need_embedding=True)
+            if res is None or res.face is None or res.embedding is None:
                 continue
-            faces = self.app.get(img)
-            if not faces:
-                continue
-            face = self._largest_face(faces)
-            if face is None or face.normed_embedding is None:
-                continue
-            quality = self._compute_face_quality(face, img)
+            quality = res.quality or self._compute_face_quality(res.face, res.img)
             if not quality["is_acceptable"]:
                 logger.warning(f"Rejected (quality) {path}: {quality['issues']}")
                 continue
-            emb = np.asarray(face.normed_embedding, dtype=np.float32)
-            with open(path, "rb") as f:
-                image_blobs.append(f.read())
-            embeddings.append(emb)
+
+            # Compress thumbnail to max 320px JPEG quality 78 to save database bandwidth (Supabase Sydney cross-region)
+            h, w = res.img.shape[:2]
+            scale = min(1.0, 320.0 / max(h, w))
+            thumb = (
+                cv2.resize(res.img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+                if scale < 1.0
+                else res.img
+            )
+            _, enc = cv2.imencode(".jpg", thumb, [cv2.IMWRITE_JPEG_QUALITY, 78])
+            image_blobs.append(enc.tobytes())
+
+            embeddings.append(res.embedding)
             qualities.append(quality["overall_score"])
 
         acceptable = len(embeddings)

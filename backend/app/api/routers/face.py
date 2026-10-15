@@ -165,6 +165,7 @@ async def register_face(
                     os.remove(path)
                 except OSError:
                     pass
+        face_service.clear_frame_cache(temp_paths)
 
 
 @router.post("/register-upload")
@@ -232,5 +233,6 @@ async def register_face_upload(
                     os.remove(path)
                 except OSError:
                     pass
+        face_service.clear_frame_cache(temp_paths)
 
 

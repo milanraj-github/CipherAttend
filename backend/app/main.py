@@ -1,6 +1,17 @@
 """FastAPI application factory and entrypoint."""
 
 import os
+
+# Bound OpenMP, BLAS, and OpenCV threads for optimal container performance (e.g. Render 0.5 CPU)
+for _env in ["OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"]:
+    os.environ.setdefault(_env, "2")
+
+import cv2
+try:
+    cv2.setNumThreads(2)
+except Exception:
+    pass
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
