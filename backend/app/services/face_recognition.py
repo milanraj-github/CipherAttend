@@ -36,7 +36,7 @@ class FaceEnrollmentError(Exception):
 class FaceRecognitionService:
     def __init__(self):
         self.model_name = settings.FACE_MODEL_PACK
-        self.det_size = (640, 640)
+        self.det_size = (320, 320)
 
         self.match_threshold = settings.FACE_MATCH_THRESHOLD
         self.duplicate_threshold = settings.FACE_DUPLICATE_THRESHOLD

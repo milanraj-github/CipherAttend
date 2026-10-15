@@ -272,11 +272,23 @@ export const webcamCaptureToFile = (imageSrc, filename = 'webcam-capture.jpg') =
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
+      const maxDim = 640;
+      let w = img.width;
+      let h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
       const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0, w, h);
       canvas.toBlob(
         (blob) => {
           if (blob) {
