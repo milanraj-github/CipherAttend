@@ -44,15 +44,21 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in on app start
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
+    // Check if user is logged in for this tab (sessionStorage provides per-tab isolation)
+    const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+    const userData = sessionStorage.getItem('user') || localStorage.getItem('user');
     
     if (token && userData) {
       try {
-        setUser(JSON.parse(userData));
+        const parsed = JSON.parse(userData);
+        setUser(parsed);
+        // Ensure this tab's sessionStorage has the active session
+        sessionStorage.setItem('token', token);
+        sessionStorage.setItem('user', JSON.stringify(parsed));
       } catch (error) {
         console.error('Error parsing user data:', error);
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       }
@@ -62,12 +68,19 @@ function App() {
 
   const login = (userData, token) => {
     setUser(userData);
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
+    // Use sessionStorage so each tab maintains its own independent session
+    // (allows presenting Admin and Student dashboards in separate tabs simultaneously)
+    sessionStorage.setItem('token', token);
+    sessionStorage.setItem('user', JSON.stringify(userData));
+    // Clear global localStorage to prevent overwriting or interfering with other tabs
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
   };
 
   const logout = () => {
     setUser(null);
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   };
@@ -77,7 +90,7 @@ function App() {
     login,
     logout,
     isAuthenticated: !!user,
-    token: localStorage.getItem('token')
+    token: sessionStorage.getItem('token') || localStorage.getItem('token')
   };
 
   if (loading) {

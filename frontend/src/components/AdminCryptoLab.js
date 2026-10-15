@@ -191,7 +191,7 @@ const AdminCryptoLab = () => {
     if (loadedImages[imageId] || loadingImages[imageId]) return;
     setLoadingImages((prev) => ({ ...prev, [imageId]: true }));
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
       const response = await fetch(cryptoLabAPI.getUserImageUrl(userId, imageId), {
         headers: { Authorization: `Bearer ${token}` },
       });

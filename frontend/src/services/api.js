@@ -12,10 +12,22 @@ const api = axios.create({
   },
 });
 
-// Add token to requests
+// Storage helpers for tab-isolated authentication
+export const getStoredToken = () => {
+  return sessionStorage.getItem('token') || localStorage.getItem('token');
+};
+
+export const clearStoredAuth = () => {
+  sessionStorage.removeItem('token');
+  sessionStorage.removeItem('user');
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+};
+
+// Add token to requests (per-tab session token)
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = getStoredToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -55,8 +67,7 @@ api.interceptors.response.use(
       requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
 
     if (error.response?.status === 401 && !isAuthAttempt) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      clearStoredAuth();
       window.location.href = '/login';
     }
     return Promise.reject(error);
